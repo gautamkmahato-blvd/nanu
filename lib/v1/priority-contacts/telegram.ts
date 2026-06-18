@@ -4,7 +4,7 @@
 
 type TelegramResult = { success: true } | { success: false; error: string };
 
-const TELEGRAM_API = 'https://api.telegram.org';
+const TELEGRAM_API = process.env.TELEGRAM_PROXY_URL || 'https://api.telegram.org';
 const SEND_TIMEOUT_MS = 10_000; // 10 seconds
 
 export async function sendTelegramMessage(
