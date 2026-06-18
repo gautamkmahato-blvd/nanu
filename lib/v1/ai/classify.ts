@@ -2,6 +2,7 @@
 //
 // Calls the AI API for each unprocessed email and stores the raw response.
 // No transformation, no priority derivation — just fetch and save.
+// FIXED: all DB operations now scoped by tenant_id.
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
@@ -11,7 +12,7 @@ import { embedPendingEmails } from '../ai-chat/embeddings/batch';
 
 const BATCH_SIZE = 10;
 const CONCURRENCY = 5;
-const MAX_BATCHES_PER_RUN = 10;
+const MAX_BATCHES_PER_RUN = 50; // Increased from 10 to handle 500-email background syncs
 const BODY_CHARS = 1500;
 const STALE_CLAIM_MINUTES = 10;
 
@@ -32,16 +33,17 @@ export type ClassifyStats = {
 };
 
 // ---------------------------------------------------------------------------
-// DB operations
+// DB operations (all tenant-scoped)
 // ---------------------------------------------------------------------------
 
-async function claimBatch(): Promise<PendingEmail[]> {
+async function claimBatch(tenantId: string): Promise<PendingEmail[]> {
   const result = await db.execute(sql`
     UPDATE emails
     SET ai_processed_at = now()
     WHERE id IN (
       SELECT id FROM emails
-      WHERE is_sent = false
+      WHERE tenant_id = ${tenantId}
+        AND is_sent = false
         AND (
           ai_processed_at IS NULL
           OR (
@@ -58,28 +60,21 @@ async function claimBatch(): Promise<PendingEmail[]> {
   return result.rows as PendingEmail[];
 }
 
-async function releaseClaim(id: string): Promise<void> {
+async function releaseClaim(id: string, tenantId: string): Promise<void> {
   await db.execute(sql`
     UPDATE emails
     SET ai_processed_at = NULL
-    WHERE id = ${id} AND ai_analysis IS NULL
+    WHERE tenant_id = ${tenantId}
+      AND id = ${id}
+      AND ai_analysis IS NULL
   `).catch(() => {});
 }
-
-// async function saveRawResponse(emailId: string, raw: Record<string, unknown>): Promise<void> {
-//   await db.execute(sql`
-//     UPDATE emails
-//     SET ai_analysis = ${JSON.stringify(raw)}::jsonb,
-//         ai_processed_at = now(),
-//         updated_at = now()
-//     WHERE id = ${emailId}
-//   `);
-// }
 
 async function saveRawResponse(
   emailId: string,
   rawText: string,
   cleaned: Record<string, unknown> | null,
+  tenantId: string,
 ): Promise<void> {
   await db.execute(sql`
     UPDATE emails
@@ -87,14 +82,17 @@ async function saveRawResponse(
         ai_raw_response = ${rawText},
         ai_processed_at = now(),
         updated_at = now()
-    WHERE id = ${emailId}
+    WHERE tenant_id = ${tenantId}
+      AND id = ${emailId}
   `);
 }
 
-async function countPending(): Promise<number> {
+async function countPending(tenantId: string): Promise<number> {
   const result = await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM emails
-    WHERE is_sent = false AND ai_processed_at IS NULL
+    WHERE tenant_id = ${tenantId}
+      AND is_sent = false
+      AND ai_processed_at IS NULL
   `);
   return Number((result.rows[0] as { n?: number })?.n ?? 0);
 }
@@ -127,62 +125,6 @@ function buildUserContent(emailData: PendingEmail): string {
 
 class LlmApiError extends Error {}
 
-async function fakeLLMResponse(emailData: PendingEmail) {
-  // we need to call teh LLM here
-  const userContent = buildUserContent(emailData);
-  const response = await openRouterAnalysis(userContent);
-
-  if (!response?.status) {
-    // API-level failure: transient — caller releases the claim for retry.
-    const reason =
-      typeof response?.message === 'string' && response.message
-        ? response.message.slice(0, 200)
-        : 'no error message returned';
-    throw new LlmApiError(`aiReasoning failed after ${reason}`);
-  }
-
-  const result = JSON.stringify(response.result); 
-
-  return {
-    status: true,
-    aiResponse: result,
-  }
-}
-
-async function callAnthropic(emailData: PendingEmail): Promise<Record<string, unknown>> {
-  
-  const res = await fakeLLMResponse(emailData)
-
-  if (!res.status) {
-    throw new Error(`Fake LLM call failed`);
-  }
-
-  const data = JSON.stringify(res.aiResponse);
-
-  return extractJson(data);
-}
-
-// ---------------------------------------------------------------------------
-// Process one email — never throws
-// ---------------------------------------------------------------------------
-
-// async function processOne(emailData: PendingEmail): Promise<'analyzed' | 'failed'> {
-//   try {
-//     const raw = await callAnthropic(emailData);
-//     const rawText = raw.aiResponse ?? '';
-//     const cleaned = extractJsonFromLLM(rawText);  // strips fences, fixes trailing commas
-//     await saveRawResponse(emailData.id, cleaned);
-//     console.log(`[ai] ✓ ${emailData.id} — ${emailData.subject?.slice(0, 40) ?? '(no subject)'}`);
-//     return 'analyzed';
-//   } catch (error) {
-//     console.warn(`[ai] ✗ ${emailData.id}: ${error instanceof Error ? error.message : error}`);
-//     await releaseClaim(emailData.id);
-//     return 'failed';
-//   }
-// }
-
-// Delete callAnthropic entirely. Replace fakeLLMResponse + processOne with:
-
 async function getLLMResponse(emailData: PendingEmail): Promise<string> {
   const userContent = buildUserContent(emailData);
   const response = await openRouterAnalysis(userContent);
@@ -194,7 +136,11 @@ async function getLLMResponse(emailData: PendingEmail): Promise<string> {
   return response.result ?? '';
 }
 
-async function processOne(emailData: PendingEmail): Promise<'analyzed' | 'failed'> {
+// ---------------------------------------------------------------------------
+// Process one email — never throws
+// ---------------------------------------------------------------------------
+
+async function processOne(emailData: PendingEmail, tenantId: string): Promise<'analyzed' | 'failed'> {
   try {
     const rawText = await getLLMResponse(emailData);
 
@@ -205,12 +151,12 @@ async function processOne(emailData: PendingEmail): Promise<'analyzed' | 'failed
       console.warn(`[ai] ⚠ ${emailData.id}: JSON parse failed, saving raw text only`);
     }
 
-    await saveRawResponse(emailData.id, rawText, cleaned);
+    await saveRawResponse(emailData.id, rawText, cleaned, tenantId);
     console.log(`[ai] ${cleaned ? '✓' : '⚠'} ${emailData.id} — ${emailData.subject?.slice(0, 40) ?? '(no subject)'}`);
     return 'analyzed';
   } catch (error) {
     console.warn(`[ai] ✗ ${emailData.id}: ${error instanceof Error ? error.message : error}`);
-    await releaseClaim(emailData.id);
+    await releaseClaim(emailData.id, tenantId);
     return 'failed';
   }
 }
@@ -233,25 +179,25 @@ async function runConcurrent<T>(items: T[], limit: number, fn: (item: T) => Prom
 
 let running = false;
 
-export async function classifySyncedEmails(): Promise<ClassifyStats> {
+export async function classifySyncedEmails(tenantId: string): Promise<ClassifyStats> {
   const stats: ClassifyStats = { batches: 0, analyzed: 0, failed: 0, remaining: 0 };
 
   if (running) {
-    stats.remaining = await countPending().catch(() => 0);
+    stats.remaining = await countPending(tenantId).catch(() => 0);
     return stats;
   }
 
   running = true;
   try {
     for (let b = 0; b < MAX_BATCHES_PER_RUN; b++) {
-      const batch = await claimBatch();
+      const batch = await claimBatch(tenantId);
       if (batch.length === 0) break;
       stats.batches++;
 
       let batchFailed = 0;
 
       await runConcurrent(batch, CONCURRENCY, async (emailData) => {
-        const result = await processOne(emailData);
+        const result = await processOne(emailData, tenantId);
         if (result === 'analyzed') stats.analyzed++;
         else { stats.failed++; batchFailed++; }
       });
@@ -260,14 +206,14 @@ export async function classifySyncedEmails(): Promise<ClassifyStats> {
       if (batchFailed > batch.length / 2) break;
     }
 
-    stats.remaining = await countPending().catch(() => 0);
+    stats.remaining = await countPending(tenantId).catch(() => 0);
 
     if (stats.batches > 0) {
       console.log(`[ai] done: ${stats.analyzed} analyzed, ${stats.failed} failed, ${stats.remaining} remaining`);
     }
 
-    // Nudge embedding pipeline after classification
-    embedPendingEmails().catch((err) =>
+    // Nudge embedding pipeline after classification — scoped to this tenant
+    embedPendingEmails(tenantId).catch((err) =>
       console.error('[embed] post-classify nudge failed:', err),
     );
 

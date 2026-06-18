@@ -4,12 +4,17 @@
 // Body: { to[], title, date, time, duration, startTime, endTime, meetLink?, meetType?, description?, organizerName }
 
 import { NextResponse } from 'next/server';
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import { getOwnEmail } from '@/lib/v1/get-own-email';
 import { generateMeetingInviteHtml } from '@/lib/v1/calendar/meeting-template';
 import { generateIcs } from '@/lib/v1/calendar/ics-generator';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { to, title, date, time, duration, startTime, endTime, meetLink, meetType, description, attendees } = body;
@@ -18,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'to[], title, startTime, endTime are required' }, { status: 400 });
     }
 
-    const from = await getOwnEmail();
+    const from = await getOwnEmail(tenantId);
     if (!from) {
       return NextResponse.json({ error: 'Could not determine sender email' }, { status: 500 });
     }
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
 
     // Send via Corsair Gmail (same mechanism as sendEmail)
     const { corsair } = await import('@/corsair');
-    const tenant = corsair.withTenant(DEFAULT_TENANT);
+    const tenant = corsair.withTenant(tenantId);
 
     const response = await tenant.gmail.api.messages.send({ raw });
 

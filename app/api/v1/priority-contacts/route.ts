@@ -4,10 +4,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listContacts, addContact } from '@/lib/v1/priority-contacts/db';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const contacts = await listContacts();
+    const contacts = await listContacts(tenantId);
     return NextResponse.json({ contacts });
   } catch (err) {
     console.error('[priority-contacts GET]', err);
@@ -19,6 +25,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -26,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const contact = await addContact(body.email, body.name, body.notes);
+    const contact = await addContact(body.email, body.name, body.notes, tenantId);
     return NextResponse.json({ contact });
   } catch (err) {
     console.error('[priority-contacts POST]', err);

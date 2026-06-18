@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { SendEmailError, replyToThread } from '@/app/service/v1/sendEmail';
 import { replyEmailSchema } from '@/lib/schemas/v1/send-email';
+import { getTenantId } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -10,6 +11,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { threadId } = await params;
 
   if (!threadId || !/^[a-zA-Z0-9_-]+$/.test(threadId)) {
@@ -31,7 +37,7 @@ export async function POST(
   }
 
   try {
-    const result = await replyToThread(threadId, parsed.data);
+    const result = await replyToThread(threadId, parsed.data, tenantId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof SendEmailError) {

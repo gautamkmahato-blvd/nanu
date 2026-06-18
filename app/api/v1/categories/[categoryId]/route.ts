@@ -1,14 +1,21 @@
 // app/api/v1/categories/[categoryId]/route.ts
 // DELETE: Remove a category (cascades to children and email assignments)
+// FIXED: tenant_id filtering — prevents cross-tenant deletion
 
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ categoryId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { categoryId } = await params;
 
   if (!categoryId) {
@@ -16,9 +23,9 @@ export async function DELETE(
   }
 
   try {
-    // ON DELETE CASCADE handles children and email_categories rows
+    // Only delete if category belongs to this tenant
     const result = await db.execute(sql`
-      DELETE FROM categories WHERE id = ${categoryId} RETURNING id
+      DELETE FROM categories WHERE id = ${categoryId} AND tenant_id = ${tenantId} RETURNING id
     `);
 
     if (result.rows.length === 0) {

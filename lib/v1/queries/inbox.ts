@@ -29,6 +29,7 @@ type InboxThreadRow = {
 export async function getInboxThreads(
   limit = 50,
   offset = 0,
+  tenantId = 'default',
 ): Promise<InboxThread[]> {
   const result = await db.execute(sql`
     WITH latest AS (
@@ -41,7 +42,8 @@ export async function getInboxThreads(
         received_at,
         is_read
       FROM emails
-      WHERE is_archived = false
+      WHERE tenant_id = ${tenantId}
+        AND is_archived = false
       ORDER BY thread_id, received_at DESC
     ),
     stats AS (
@@ -50,7 +52,8 @@ export async function getInboxThreads(
         COUNT(*)::int AS message_count,
         bool_or(NOT is_read) AS has_unread
       FROM emails
-      WHERE is_archived = false
+      WHERE tenant_id = ${tenantId}
+        AND is_archived = false
       GROUP BY thread_id
     )
     SELECT

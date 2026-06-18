@@ -26,19 +26,18 @@ export type PrepSearchResult = {
 // Config
 // ---------------------------------------------------------------------------
 
-const RRF_K = 60;                    // Same as chat pipeline
-const MIN_RRF_SCORE = 0.008;         // Minimum RRF score to include (filters pure noise)
-const VECTOR_LIMIT = 15;             // Top N from vector search per query
-const FULLTEXT_LIMIT = 15;           // Top N from fulltext search per query
-const PER_ATTENDEE_LIMIT = 5;        // Max results per attendee after merge
+const RRF_K = 60;
+const MIN_RRF_SCORE = 0.008;
+const VECTOR_LIMIT = 15;
+const FULLTEXT_LIMIT = 15;
+const PER_ATTENDEE_LIMIT = 5;
 
 // ---------------------------------------------------------------------------
 // Main: hybrid search for meeting prep
 // ---------------------------------------------------------------------------
 
 export async function searchRelevantEmails(
-  meetingContext: string,
-  attendeeEmails: string[],
+  meetingContext: string, attendeeEmails: string[], tenantId = 'default',
 ): Promise<Map<string, PrepSearchResult[]>> {
   if (!meetingContext.trim() || attendeeEmails.length === 0) {
     return new Map();
@@ -48,14 +47,13 @@ export async function searchRelevantEmails(
 
   // Run vector + fulltext in parallel
   const [vectorResults, fulltextResults] = await Promise.allSettled([
-    vectorSearch(meetingContext, emailList, VECTOR_LIMIT),
-    fulltextSearch(meetingContext, emailList, FULLTEXT_LIMIT),
+    vectorSearch(meetingContext, emailList, VECTOR_LIMIT, tenantId),
+    fulltextSearch(meetingContext, emailList, FULLTEXT_LIMIT, tenantId),
   ]);
 
   const vector = vectorResults.status === 'fulfilled' ? vectorResults.value : [];
   const fulltext = fulltextResults.status === 'fulfilled' ? fulltextResults.value : [];
 
-  // Log for debugging
   console.log(`[prep-search] vector=${vector.length} fulltext=${fulltext.length} for "${meetingContext.slice(0, 50)}"`);
 
   // RRF merge
@@ -86,6 +84,7 @@ async function vectorSearch(
   query: string,
   emailFilter: ReturnType<typeof sql.join>,
   limit: number,
+  tenantId: string,
 ): Promise<RawResult[]> {
   const embedding = await generateEmbedding(query);
   if (!embedding || embedding.length === 0) return [];
@@ -102,7 +101,8 @@ async function vectorSearch(
       ai_analysis->>'topics' AS topics,
       (1 - (embedding <=> ${embeddingStr}::vector)) AS similarity
     FROM emails
-    WHERE LOWER(from_email) IN (${emailFilter})
+    WHERE tenant_id = ${tenantId}
+      AND LOWER(from_email) IN (${emailFilter})
       AND embedding IS NOT NULL
     ORDER BY embedding <=> ${embeddingStr}::vector
     LIMIT ${limit}
@@ -127,8 +127,8 @@ async function fulltextSearch(
   query: string,
   emailFilter: ReturnType<typeof sql.join>,
   limit: number,
+  tenantId: string,
 ): Promise<RawResult[]> {
-  // Extract meaningful words (remove common filler)
   const searchTerms = query
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .split(/\s+/)
@@ -148,7 +148,8 @@ async function fulltextSearch(
       ai_analysis->>'topics' AS topics,
       ts_rank(search_vector, to_tsquery('english', ${searchTerms})) AS rank
     FROM emails
-    WHERE LOWER(from_email) IN (${emailFilter})
+    WHERE tenant_id = ${tenantId}
+      AND LOWER(from_email) IN (${emailFilter})
       AND search_vector IS NOT NULL
       AND search_vector @@ to_tsquery('english', ${searchTerms})
     ORDER BY rank DESC
@@ -162,18 +163,17 @@ async function fulltextSearch(
     receivedAt: String(r.receivedAt ?? ''),
     snippet: String(r.snippet ?? ''),
     topics: r.topics as string | null,
-    similarity: 0, // fulltext doesn't have cosine similarity
+    similarity: 0,
   }));
 }
 
 // ---------------------------------------------------------------------------
-// RRF Merge (Reciprocal Rank Fusion) — standalone, not imported from chat
+// RRF Merge (Reciprocal Rank Fusion)
 // ---------------------------------------------------------------------------
 
 function rrfMerge(vectorResults: RawResult[], fulltextResults: RawResult[]): PrepSearchResult[] {
   const merged = new Map<string, PrepSearchResult>();
 
-  // Score vector results
   for (let rank = 0; rank < vectorResults.length; rank++) {
     const r = vectorResults[rank];
     const rrfScore = 1 / (rank + RRF_K);
@@ -191,14 +191,12 @@ function rrfMerge(vectorResults: RawResult[], fulltextResults: RawResult[]): Pre
     });
   }
 
-  // Score fulltext results
   for (let rank = 0; rank < fulltextResults.length; rank++) {
     const r = fulltextResults[rank];
     const rrfScore = 1 / (rank + RRF_K);
 
     const existing = merged.get(r.id);
     if (existing) {
-      // Email appeared in BOTH layers — boost score
       existing.rrfScore += rrfScore;
       if (!existing.matchSources.includes('fulltext')) {
         existing.matchSources.push('fulltext');
@@ -218,7 +216,6 @@ function rrfMerge(vectorResults: RawResult[], fulltextResults: RawResult[]): Pre
     }
   }
 
-  // Sort: emails matching BOTH layers first, then by RRF score
   return Array.from(merged.values()).sort((a, b) => {
     if (a.matchSources.length !== b.matchSources.length) {
       return b.matchSources.length - a.matchSources.length;

@@ -19,7 +19,9 @@ export const corsair = createCorsair({
           // for the Gmail event (messageReceived | messageDeleted | messageLabelChanged).
           after: async (_ctx, response) => {
             try {
-              await handleGmailWebhookEvent(response);
+              // Extract tenantId from Corsair's context
+              const tenantId = (_ctx as any)?.tenantId ?? (_ctx as any)?.tenant_id ?? 'default';
+              await handleGmailWebhookEvent(response, tenantId);
             } catch (error) {
               // Re-throw so the route returns 500 and the sender retries —
               // ingest is idempotent, so a retry can only help.

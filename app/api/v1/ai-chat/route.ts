@@ -2,8 +2,14 @@
 
 import { NextResponse } from 'next/server';
 import { handleChatQuery } from '@/lib/v1/ai-chat';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const message = body.message;
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 });
     }
 
-    const result = await handleChatQuery(message.trim());
+    const result = await handleChatQuery(message.trim(), { tenantId });
 
     return NextResponse.json(result);
   } catch (error) {

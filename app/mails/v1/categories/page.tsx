@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ToastProvider, useToast } from '../_components/ui/ToastProvider';
 import ConfirmModal from '../_components/ui/ConfirmModal';
+import {
+  FolderOpen, Plus, ChevronDown, ChevronRight, Trash2, X,
+  Mail, Loader2,
+} from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,7 +81,6 @@ function capitalize(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Build tree structure from flat list
 function buildTree(categories: Category[]): CategoryNode[] {
   const map = new Map<string, CategoryNode>();
   const roots: CategoryNode[] = [];
@@ -116,11 +119,12 @@ function CategoriesContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [emails, setEmails] = useState<CategoryEmail[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createParentId, setCreateParentId] = useState<string | null>(null);
-
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
   // Load categories
   const loadCategories = useCallback(async () => {
     try {
@@ -130,6 +134,8 @@ function CategoriesContent() {
       setCategories(data.categories);
     } catch {
       showToast('Failed to load categories', 'error');
+    } finally {
+      setLoadingCategories(false);
     }
   }, [showToast]);
 
@@ -199,7 +205,7 @@ function CategoriesContent() {
       if (!res.ok) throw new Error('Failed');
       setEmails((prev) => prev.filter((e) => e.id !== emailId));
       showToast('Email removed from category', 'info');
-      loadCategories(); // refresh counts
+      loadCategories();
     } catch {
       showToast('Failed to remove email', 'error');
     }
@@ -209,30 +215,33 @@ function CategoriesContent() {
   const selectedCat = categories.find((c) => c.id === selectedId);
 
   return (
-    <div style={{ background: '#09090b', height: '100vh', display: 'flex', color: '#fafafa', fontFamily: '-apple-system, system-ui, sans-serif' }}>
-      {/* Sidebar */}
-      <div style={{ width: 280, borderRight: '1px solid #18181b', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: '20px 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>📁 Categories</h1>
+    <div className="bg-mail-bg h-screen flex text-mail-text font-sans">
+      {/* ── Sidebar ── */}
+      <div className="w-[280px] border-r border-mail-border flex flex-col shrink-0">
+        {/* Sidebar header */}
+        <div className="px-4 pt-5 pb-3 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <FolderOpen size={16} className="text-mail-accent" />
+            <h1 className="text-[15px] font-semibold m-0">Categories</h1>
+          </div>
           <button
             onClick={() => { setCreateParentId(null); setShowCreateModal(true); }}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 6,
-              border: '1px solid #27272a',
-              background: 'transparent',
-              color: '#a1a1aa',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-mail-border bg-transparent text-mail-muted text-[11px] cursor-pointer hover:bg-mail-hover transition-colors"
           >
-            + New
+            <Plus size={11} /> New
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px' }}>
-          {tree.length === 0 && (
-            <div style={{ padding: '24px 8px', textAlign: 'center', color: '#27272a', fontSize: 12 }}>
+        {/* Category tree */}
+        <div className="flex-1 overflow-y-auto px-2 pb-4">
+          {loadingCategories && (
+            <div className="flex items-center justify-center py-8 text-mail-subtle text-xs gap-2">
+              <Loader2 size={13} className="animate-spin" /> Loading...
+            </div>
+          )}
+
+          {!loadingCategories && tree.length === 0 && (
+            <div className="py-8 text-center text-mail-subtle/40 text-xs">
               No categories yet
             </div>
           )}
@@ -251,115 +260,101 @@ function CategoriesContent() {
         </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #18181b', flexShrink: 0 }}>
+      {/* ── Main content ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Content header */}
+        <div className="px-6 py-5 border-b border-mail-border shrink-0">
           {selectedCat ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, background: selectedCat.color }} />
-              <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{selectedCat.name}</h2>
-              <span style={{ fontSize: 12, color: '#52525b', fontFamily: 'monospace' }}>
-                {emails.length} emails
-              </span>
+            <div className="flex items-center gap-2.5">
+              <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: selectedCat.color }} />
+              <h2 className="text-lg font-semibold m-0">{selectedCat.name}</h2>
+              <span className="text-xs text-mail-subtle font-mono">{emails.length} email{emails.length !== 1 ? 's' : ''}</span>
             </div>
           ) : (
-            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: '#52525b' }}>
-              Select a category
-            </h2>
+            <h2 className="text-lg font-semibold m-0 text-mail-subtle">Select a category</h2>
           )}
         </div>
 
         {/* Email list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* No selection */}
           {!selectedId && (
-            <div style={{ padding: '60px 0', textAlign: 'center', color: '#27272a', fontSize: 13 }}>
-              Choose a category from the sidebar to view its emails
+            <div className="py-16 text-center flex flex-col items-center gap-2">
+              <FolderOpen size={32} strokeWidth={1} className="text-mail-subtle opacity-20" />
+              <div className="text-[13px] text-mail-subtle">Choose a category from the sidebar to view its emails</div>
             </div>
           )}
 
+          {/* Loading */}
           {selectedId && loadingEmails && (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: '#52525b', fontSize: 13 }}>
-              Loading...
+            <div className="py-12 text-center flex flex-col items-center gap-2 text-mail-subtle text-xs">
+              <Loader2 size={18} className="animate-spin" />
+              Loading emails...
             </div>
           )}
 
+          {/* Empty */}
           {selectedId && !loadingEmails && emails.length === 0 && (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: '#27272a', fontSize: 13 }}>
-              No emails in this category yet. Assign emails from the email detail page.
+            <div className="py-12 text-center flex flex-col items-center gap-2">
+              <Mail size={28} strokeWidth={1} className="text-mail-subtle opacity-20" />
+              <div className="text-[13px] text-mail-subtle">No emails in this category yet</div>
+              <div className="text-[11px] text-mail-subtle/60">Assign emails from the email detail page</div>
             </div>
           )}
 
+          {/* Email rows */}
           {emails.map((email) => (
             <div
               key={email.id}
-              style={{
-                padding: '12px 16px',
-                borderRadius: 8,
-                background: '#18181b',
-                border: '1px solid #27272a',
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 12,
-                cursor: 'pointer',
-                transition: 'border-color 150ms',
-              }}
               onClick={() => router.push(`/ai-email-details/${email.id}`)}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3f3f46'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#27272a'; }}
+              className="px-4 py-3 rounded-lg bg-mail-surface border border-mail-border mb-2 flex items-start gap-3 cursor-pointer hover:border-mail-border-hover transition-colors group"
             >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>
+              {/* Email content */}
+              <div className="flex-1 min-w-0">
+                {/* Top line: sender + badges */}
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-[13px] font-medium text-mail-text">
                     {displayName(email.fromName, email.fromEmail)}
                   </span>
-                  {email.sentiment && <span style={{ fontSize: 10 }}>{SENTIMENT_EMOJI[email.sentiment] ?? ''}</span>}
+                  {email.sentiment && (
+                    <span className="text-[10px]">{SENTIMENT_EMOJI[email.sentiment] ?? ''}</span>
+                  )}
                   {email.relationshipType && email.relationshipType !== 'other' && (
-                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 6, background: '#27272a', color: '#71717a' }}>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-mail-hover text-mail-subtle">
                       {capitalize(email.relationshipType)}
                     </span>
                   )}
                   {email.primaryTag && (
-                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 6, background: '#27272a', color: '#52525b' }}>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-mail-hover text-mail-subtle/70">
                       {email.primaryTag}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 13, color: '#d4d4d8', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+                {/* Subject */}
+                <div className="text-[13px] text-mail-muted truncate">
                   {email.subject || '(no subject)'}
                 </div>
+
+                {/* Summary */}
                 {email.summary && (
-                  <div style={{ fontSize: 12, color: '#52525b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="text-[12px] text-mail-subtle truncate mt-0.5">
                     {email.summary}
                   </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: '#52525b', fontFamily: 'monospace' }}>
+              {/* Right side: time + remove */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] text-mail-subtle font-mono">
                   {relativeTime(email.receivedAt)}
                 </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); removeEmail(email.id); }}
                   title="Remove from category"
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    border: 'none',
-                    background: 'transparent',
-                    color: '#52525b',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = '#52525b'; }}
+                  className="w-6 h-6 rounded flex items-center justify-center text-mail-subtle/50 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
                 >
-                  ×
+                  <X size={12} />
                 </button>
               </div>
             </div>
@@ -367,7 +362,7 @@ function CategoriesContent() {
         </div>
       </div>
 
-      {/* Create category modal */}
+      {/* ── Create category modal ── */}
       {showCreateModal && (
         <CreateCategoryModal
           parentId={createParentId}
@@ -377,7 +372,7 @@ function CategoriesContent() {
         />
       )}
 
-      {/* Delete confirmation modal */}
+      {/* ── Delete confirmation modal ── */}
       {deleteTarget && (
         <ConfirmModal
           isOpen={true}
@@ -389,13 +384,12 @@ function CategoriesContent() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Tree node (recursive)
+// Tree Node (recursive)
 // ---------------------------------------------------------------------------
 
 function TreeNode({
@@ -421,66 +415,52 @@ function TreeNode({
     <div>
       <div
         onClick={() => onSelect(category.id)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 8px',
-          paddingLeft: 8 + depth * 16,
-          borderRadius: 6,
-          background: isSelected ? `${category.color}15` : 'transparent',
-          cursor: 'pointer',
-          transition: 'background 100ms',
-          marginBottom: 2,
-        }}
-        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#18181b'; }}
-        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+        className={`flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer transition-colors mb-0.5 group ${
+          isSelected ? 'bg-mail-accent-soft' : 'hover:bg-mail-hover'
+        }`}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
         {/* Expand toggle */}
         {hasChildren ? (
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-            style={{ background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', fontSize: 10, padding: 0, width: 14, textAlign: 'center' }}
+            className="w-3.5 text-mail-subtle hover:text-mail-muted transition-colors cursor-pointer bg-transparent border-none p-0 flex items-center justify-center"
           >
-            {expanded ? '▾' : '▸'}
+            {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </button>
         ) : (
-          <span style={{ width: 14 }} />
+          <span className="w-3.5" />
         )}
 
         {/* Color dot */}
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: category.color, flexShrink: 0 }} />
+        <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: category.color }} />
 
         {/* Name */}
-        <span style={{ fontSize: 13, color: isSelected ? '#fafafa' : '#a1a1aa', fontWeight: isSelected ? 500 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className={`text-[13px] flex-1 truncate ${isSelected ? 'text-mail-text font-medium' : 'text-mail-muted'}`}>
           {category.name}
         </span>
 
-        {/* Count */}
+        {/* Email count */}
         {category.emailCount > 0 && (
-          <span style={{ fontSize: 10, color: '#52525b', fontFamily: 'monospace' }}>
-            {category.emailCount}
-          </span>
+          <span className="text-[10px] text-mail-subtle font-mono">{category.emailCount}</span>
         )}
 
-        {/* Actions (visible on hover via CSS would be nice, but inline for simplicity) */}
+        {/* Add child — visible on hover */}
         <button
           onClick={(e) => { e.stopPropagation(); onAddChild(category.id); }}
           title="Add subcategory"
-          style={{ background: 'none', border: 'none', color: '#27272a', cursor: 'pointer', fontSize: 12, padding: 0 }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#a1a1aa'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#27272a'; }}
+          className="opacity-0 group-hover:opacity-100 bg-transparent border-none text-mail-subtle/40 hover:text-mail-muted cursor-pointer p-0 transition-all"
         >
-          +
+          <Plus size={11} />
         </button>
+
+        {/* Delete — visible on hover */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(category.id, category.name); }}
           title="Delete category"
-          style={{ background: 'none', border: 'none', color: '#27272a', cursor: 'pointer', fontSize: 12, padding: 0 }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#27272a'; }}
+          className="opacity-0 group-hover:opacity-100 bg-transparent border-none text-mail-subtle/40 hover:text-red-400 cursor-pointer p-0 transition-all"
         >
-          ×
+          <Trash2 size={10} />
         </button>
       </div>
 
@@ -501,7 +481,7 @@ function TreeNode({
 }
 
 // ---------------------------------------------------------------------------
-// Create category modal
+// Create Category Modal
 // ---------------------------------------------------------------------------
 
 function CreateCategoryModal({
@@ -527,27 +507,16 @@ function CreateCategoryModal({
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 90 }} />
-      <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 91,
-        background: '#18181b',
-        border: '1px solid #27272a',
-        borderRadius: 14,
-        padding: 24,
-        width: 380,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-      }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px', color: '#fafafa' }}>
+      {/* Backdrop */}
+      <div onClick={onClose} className="fixed inset-0 bg-black/60 z-[90]" />
+
+      {/* Modal */}
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[91] bg-mail-surface border border-mail-border rounded-xl p-6 w-[380px] shadow-2xl">
+        <h3 className="text-[15px] font-semibold text-mail-text m-0 mb-1">
           {parentId ? 'Create Subcategory' : 'Create Category'}
         </h3>
         {parentName && (
-          <p style={{ fontSize: 12, color: '#52525b', margin: '0 0 16px' }}>
-            Inside: {parentName}
-          </p>
+          <p className="text-[12px] text-mail-subtle m-0 mb-4">Inside: {parentName}</p>
         )}
 
         {/* Name input */}
@@ -558,36 +527,22 @@ function CreateCategoryModal({
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
           placeholder="Category name..."
           autoFocus
-          style={{
-            width: '100%',
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid #27272a',
-            background: '#09090b',
-            color: '#fafafa',
-            fontSize: 14,
-            outline: 'none',
-            marginBottom: 14,
-            boxSizing: 'border-box',
-          }}
+          className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-sm outline-none mb-3.5 focus:border-mail-accent transition-colors"
         />
 
         {/* Color picker */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: '#52525b', marginBottom: 8 }}>Color</div>
-          <div style={{ display: 'flex', gap: 6 }}>
+        <div className="mb-5">
+          <div className="text-[12px] text-mail-subtle mb-2">Color</div>
+          <div className="flex gap-1.5">
             {COLORS.map((c) => (
               <button
                 key={c.value}
                 onClick={() => setColor(c.value)}
+                className="w-6 h-6 rounded-md cursor-pointer p-0 transition-all"
                 style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  border: color === c.value ? '2px solid #fafafa' : '2px solid transparent',
                   background: c.value,
-                  cursor: 'pointer',
-                  padding: 0,
+                  border: color === c.value ? '2px solid #fafafa' : '2px solid transparent',
+                  transform: color === c.value ? 'scale(1.15)' : 'scale(1)',
                 }}
                 title={c.label}
               />
@@ -596,25 +551,22 @@ function CreateCategoryModal({
         </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #27272a', background: 'transparent', color: '#a1a1aa', fontSize: 13, cursor: 'pointer' }}
+            className="px-4 py-2 rounded-lg border border-mail-border bg-transparent text-mail-muted text-[13px] cursor-pointer hover:bg-mail-hover transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!name.trim()}
+            className="px-4 py-2 rounded-lg border-none text-[13px] font-medium transition-all"
             style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: name.trim() ? color : '#27272a',
-              color: name.trim() ? '#fff' : '#52525b',
-              fontSize: 13,
-              fontWeight: 500,
+              background: name.trim() ? color : 'var(--mail-border)',
+              color: name.trim() ? '#fff' : 'var(--mail-subtle)',
               cursor: name.trim() ? 'pointer' : 'default',
+              opacity: name.trim() ? 1 : 0.6,
             }}
           >
             Create

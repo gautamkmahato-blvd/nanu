@@ -3,10 +3,16 @@
 import { NextResponse } from 'next/server';
 import { getDashboardEmails } from '@/lib/v1/queries/dashboard';
 import { computeDashboard } from '@/lib/v1/dashboard';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const emails = await getDashboardEmails();
+    const emails = await getDashboardEmails(tenantId);
     const dashboard = computeDashboard(emails);
     return NextResponse.json(dashboard);
   } catch (error) {

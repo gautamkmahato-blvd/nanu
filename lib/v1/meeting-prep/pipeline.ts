@@ -1,8 +1,9 @@
 // lib/v1/meeting-prep/pipeline.ts
 // Orchestrator: runs Steps 1 → 7 in sequence.
 // Now includes debug info for tracing accuracy issues.
+// Updated: threads relatedEmails from step 5 dedup into MeetingPrepOutput for the UI.
 
-import type { PipelineResult, MeetingPrepOutput, CacheCheckResult } from './types';
+import type { PipelineResult, MeetingPrepOutput, CacheCheckResult, DeduplicatedEmail } from './types';
 import type { MeetingSearchDebug } from './step4-hybrid-search';
 
 import { getMeetings } from './step1-get-meetings';
@@ -35,14 +36,14 @@ export type PipelineResultWithDebug = PipelineResult & {
 // Main pipeline
 // ---------------------------------------------------------------------------
 
-export async function runMeetingPrepPipeline(hours: number = 24): Promise<PipelineResultWithDebug> {
+export async function runMeetingPrepPipeline(hours: number = 24, tenantId = 'default'): Promise<PipelineResultWithDebug> {
   const events: MeetingPrepOutput[] = [];
   const errors: PipelineResult['errors'] = [];
   const debug: PipelineDebug[] = [];
 
   // ── Step 1: Get meetings ──
   console.log('[Pipeline] Step 1: Fetching meetings...');
-  const meetingsResult = await getMeetings(hours);
+  const meetingsResult = await getMeetings(hours, tenantId);
 
   if (!meetingsResult.ok) {
     return { success: false, events: [], errors: [{ meetingId: '', meetingSummary: '', error: meetingsResult.error }], debug: [] };
@@ -58,7 +59,7 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
 
   // ── Step 2: Check cache ──
   console.log('[Pipeline] Step 2: Checking cache...');
-  const cacheResult = await checkCache(meetings);
+  const cacheResult = await checkCache(meetings, tenantId);
 
   if (!cacheResult.ok) {
     return { success: false, events: [], errors: [{ meetingId: '', meetingSummary: '', error: cacheResult.error }], debug: [] };
@@ -86,8 +87,9 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
     }
   }
 
+  // Cached events don't have relatedEmails (emails aren't cached) — pass empty array
   for (const c of cached) {
-    events.push({ meeting: c.meeting, prep: c.cachedPrep!, fromCache: true });
+    events.push({ meeting: c.meeting, prep: c.cachedPrep!, fromCache: true, relatedEmails: [] });
   }
 
   console.log(`[Pipeline] ${cached.length} from cache, ${needsRefresh.length} need refresh`);
@@ -122,7 +124,7 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
 
   // ── Step 4: Hybrid search ──
   console.log('[Pipeline] Step 4: Running hybrid search...');
-  const searchResult = await hybridSearch(queriesResult.data);
+  const searchResult = await hybridSearch(queriesResult.data, tenantId);
 
   if (!searchResult.ok) {
     for (const m of meetingsToProcess) {
@@ -155,6 +157,12 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
     dedupDebugMap[bundle.meeting.id] = bundle.totalRetrieved;
   }
 
+  // Build meetingId → deduplicated emails lookup for threading into output
+  const emailsByMeetingId: Record<string, DeduplicatedEmail[]> = {};
+  for (const bundle of dedupeResult.data) {
+    emailsByMeetingId[bundle.meeting.id] = bundle.allEmails;
+  }
+
   const totalEmails = dedupeResult.data.reduce((s, b) => s + b.totalRetrieved, 0);
   console.log(`[Pipeline] ${totalEmails} total emails across ${dedupeResult.data.length} meetings`);
 
@@ -172,7 +180,13 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
   for (const prep of synthesisResult.data) {
     const meeting = meetingsToProcess.find((m) => m.id === prep.meetingId);
     if (meeting) {
-      events.push({ meeting, prep, fromCache: false });
+      // Attach the deduplicated emails from step 5 so the UI can render them
+      events.push({
+        meeting,
+        prep,
+        fromCache: false,
+        relatedEmails: emailsByMeetingId[meeting.id] ?? [],
+      });
 
       // Build debug for this meeting
       debug.push({
@@ -191,7 +205,7 @@ export async function runMeetingPrepPipeline(hours: number = 24): Promise<Pipeli
 
   // ── Step 7: Cache ──
   console.log('[Pipeline] Step 7: Caching results...');
-  await cacheAndRespond(meetingsToProcess, synthesisResult.data);
+  await cacheAndRespond(meetingsToProcess, synthesisResult.data, tenantId);
 
   console.log(`[Pipeline] Done. ${events.length} total events prepared.`);
 

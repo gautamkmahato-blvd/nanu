@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 const VALID_STATUSES = ['new', 'in_progress', 'waiting', 'done', 'archived'] as const;
 type EmailStatus = (typeof VALID_STATUSES)[number];
@@ -17,6 +18,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ emailId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { emailId } = await params;
 
   if (!emailId || !/^[a-zA-Z0-9_-]+$/.test(emailId)) {
@@ -42,7 +48,7 @@ export async function PATCH(
             action_taken = true,
             action_taken_at = COALESCE(action_taken_at, now()),
             updated_at = now()
-        WHERE id = ${emailId}
+        WHERE tenant_id = ${tenantId} AND id = ${emailId}
       `);
     } else if (status === 'new' || status === 'in_progress') {
       // Moving back to active clears the done flag
@@ -52,14 +58,14 @@ export async function PATCH(
             action_taken = false,
             action_taken_at = NULL,
             updated_at = now()
-        WHERE id = ${emailId}
+        WHERE tenant_id = ${tenantId} AND id = ${emailId}
       `);
     } else {
       await db.execute(sql`
         UPDATE emails
         SET status = ${status},
             updated_at = now()
-        WHERE id = ${emailId}
+        WHERE tenant_id = ${tenantId} AND id = ${emailId}
       `);
     }
 

@@ -13,7 +13,7 @@ export type ActionResult = {
   error?: string;
 };
 
-export async function executeEmailAction(emailId: string, action: ActionType): Promise<ActionResult> {
+export async function executeEmailAction(emailId: string, action: ActionType, tenantId = 'default'): Promise<ActionResult> {
   if (!emailId) {
     return { success: false, emailId, action, error: 'Email ID is required' };
   }
@@ -26,7 +26,8 @@ export async function executeEmailAction(emailId: string, action: ActionType): P
           SET action_taken = true,
               action_taken_at = now(),
               updated_at = now()
-          WHERE id = ${emailId}
+          WHERE tenant_id = ${tenantId}
+            AND id = ${emailId}
         `);
         break;
 
@@ -36,7 +37,8 @@ export async function executeEmailAction(emailId: string, action: ActionType): P
           SET action_taken = false,
               action_taken_at = NULL,
               updated_at = now()
-          WHERE id = ${emailId}
+          WHERE tenant_id = ${tenantId}
+            AND id = ${emailId}
         `);
         break;
 
@@ -45,7 +47,8 @@ export async function executeEmailAction(emailId: string, action: ActionType): P
           UPDATE emails
           SET is_starred = true,
               updated_at = now()
-          WHERE id = ${emailId}
+          WHERE tenant_id = ${tenantId}
+            AND id = ${emailId}
         `);
         break;
 
@@ -54,7 +57,8 @@ export async function executeEmailAction(emailId: string, action: ActionType): P
           UPDATE emails
           SET is_starred = false,
               updated_at = now()
-          WHERE id = ${emailId}
+          WHERE tenant_id = ${tenantId}
+            AND id = ${emailId}
         `);
         break;
 

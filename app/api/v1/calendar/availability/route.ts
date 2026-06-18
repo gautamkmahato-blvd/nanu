@@ -4,8 +4,14 @@
 
 import { NextResponse } from 'next/server';
 import { getAvailability } from '@/lib/v1/calendar/availability';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
 
@@ -23,7 +29,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid date format. Use ISO strings.' }, { status: 400 });
     }
 
-    const availability = await getAvailability(timeMin, timeMax);
+    const availability = await getAvailability(timeMin, timeMax, tenantId);
 
     return NextResponse.json(availability);
   } catch (error) {

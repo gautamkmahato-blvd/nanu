@@ -26,7 +26,7 @@ let _corsairTools: CorsairMcpTool[] = [];
 let _allOpenAITools: OpenAITool[] = [];
 let _initialized = false;
 
-const executorMap = new Map<string, (args: Record<string, unknown>) => Promise<{ success: boolean; data: unknown; error?: string }>>();
+const executorMap = new Map<string, (args: Record<string, unknown>, tenantId: string) => Promise<{ success: boolean; data: unknown; error?: string }>>();
 
 export const DESTRUCTIVE_TOOLS = new Set<string>();
 
@@ -115,7 +115,7 @@ function ensureISO(d: string): string {
 // ---------------------------------------------------------------------------
 
 function registerManualCorsairTools(): void {
-  const manualTools: { def: OpenAITool; exec: (args: Record<string, unknown>) => Promise<{ success: boolean; data: unknown; error?: string }> }[] = [
+  const manualTools: { def: OpenAITool; exec: (args: Record<string, unknown>, tenantId: string) => Promise<{ success: boolean; data: unknown; error?: string }> }[] = [
     {
       def: {
         type: 'function',
@@ -134,9 +134,9 @@ function registerManualCorsairTools(): void {
           },
         },
       },
-      exec: async (args) => {
+      exec: async (args, tenantId) => {
         const { sendEmail } = await import('@/app/service/v1/sendEmail');
-        const result = await sendEmail({ to: args.to as string[], subject: args.subject as string, body: args.body as string, cc: (args.cc as string[]) ?? [] });
+        const result = await sendEmail({ to: args.to as string[], subject: args.subject as string, body: args.body as string, cc: (args.cc as string[]) ?? [] }, tenantId);
         return { success: true, data: { messageId: result.id, threadId: result.threadId } };
       },
     },
@@ -160,10 +160,9 @@ function registerManualCorsairTools(): void {
           },
         },
       },
-      exec: async (args) => {
+      exec: async (args, tenantId) => {
         const { corsair: c } = await import('@/corsair');
-        const { DEFAULT_TENANT } = await import('@/constants/gmail');
-        const tenant = c.withTenant(DEFAULT_TENANT);
+        const tenant = c.withTenant(tenantId);
         const attendees = ((args.attendeeEmails as string[]) ?? []).filter((e) => e.includes('@')).map((email) => ({ email }));
         const startISO = ensureISO(args.startDateTime as string);
         const endISO = ensureISO(args.endDateTime as string);
@@ -194,11 +193,11 @@ function registerManualCorsairTools(): void {
           },
         },
       },
-      exec: async (args) => {
+      exec: async (args, tenantId) => {
         const { getAvailability } = await import('@/lib/v1/calendar/availability');
         const startDate = ensureISO(args.startDate as string);
         const endDate = ensureISO(args.endDate as string);
-        const result = await getAvailability(startDate, endDate);
+        const result = await getAvailability(startDate, endDate, tenantId);
         return { success: true, data: { free: result.free?.slice(0, 10), busy: result.busy?.slice(0, 10) } };
       },
     },
@@ -220,10 +219,9 @@ function registerManualCorsairTools(): void {
           },
         },
       },
-      exec: async (args) => {
+      exec: async (args, tenantId) => {
         const { corsair: c } = await import('@/corsair');
-        const { DEFAULT_TENANT } = await import('@/constants/gmail');
-        const tenant = c.withTenant(DEFAULT_TENANT);
+        const tenant = c.withTenant(tenantId);
 
         const daysBack = (args.daysBack as number) ?? 30;
         const daysForward = (args.daysForward as number) ?? 7;
@@ -301,9 +299,9 @@ function registerCustomTools(): void {
       },
     },
   });
-  executorMap.set('search_inbox', async (args) => {
+  executorMap.set('search_inbox', async (args, tenantId) => {
     const { handleChatQuery } = await import('@/lib/v1/ai-chat');
-    const result = await handleChatQuery(args.query as string);
+    const result = await handleChatQuery(args.query as string, { tenantId });
     return {
       success: true,
       data: {
@@ -343,11 +341,12 @@ export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   emailContext?: { threadId?: string },
+  tenantId = 'default',
 ): Promise<{ success: boolean; data: unknown; error?: string }> {
   if (name === 'reply_to_email') {
     if (!emailContext?.threadId) return { success: false, data: null, error: 'No email context — cannot reply' };
     const { replyToThread } = await import('@/app/service/v1/sendEmail');
-    const result = await replyToThread(emailContext.threadId, { body: args.body as string, mode: (args.mode as 'reply' | 'replyAll') ?? 'reply' });
+    const result = await replyToThread(emailContext.threadId, { body: args.body as string, mode: (args.mode as 'reply' | 'replyAll') ?? 'reply' }, tenantId);
     return { success: true, data: { messageId: result.id, threadId: result.threadId } };
   }
 
@@ -355,7 +354,7 @@ export async function executeTool(
   if (!exec) return { success: false, data: null, error: `Unknown tool: ${name}` };
 
   try {
-    return await exec(args);
+    return await exec(args, tenantId);
   } catch (err) {
     return { success: false, data: null, error: err instanceof Error ? err.message : 'Execution failed' };
   }
@@ -398,10 +397,11 @@ export async function executeToolWithTimeout(
   name: string,
   args: Record<string, unknown>,
   emailContext?: { threadId?: string },
+  tenantId = 'default',
 ): Promise<{ success: boolean; data: unknown; error?: string }> {
   try {
     return await Promise.race([
-      executeTool(name, args, emailContext),
+      executeTool(name, args, emailContext, tenantId),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`Tool '${name}' timed out after 30s`)), TOOL_TIMEOUT_MS)
       ),

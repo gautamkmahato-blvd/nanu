@@ -13,12 +13,12 @@ const CACHE_TTL_HOURS = 6;
 // Main
 // ---------------------------------------------------------------------------
 
-export async function checkCache(meetings: Meeting[]): Promise<StepResult<CacheCheckResult[]>> {
+export async function checkCache(meetings: Meeting[], tenantId = 'default'): Promise<StepResult<CacheCheckResult[]>> {
   try {
     const results: CacheCheckResult[] = [];
 
     for (const meeting of meetings) {
-      const result = await checkSingleMeetingCache(meeting);
+      const result = await checkSingleMeetingCache(meeting, tenantId);
       results.push(result);
     }
 
@@ -32,9 +32,9 @@ export async function checkCache(meetings: Meeting[]): Promise<StepResult<CacheC
 // Sub-step 2a: Check cache for a single meeting
 // ---------------------------------------------------------------------------
 
-async function checkSingleMeetingCache(meeting: Meeting): Promise<CacheCheckResult> {
+async function checkSingleMeetingCache(meeting: Meeting, tenantId: string): Promise<CacheCheckResult> {
   try {
-    const cached = await fetchCachedPrep(meeting.id);
+    const cached = await fetchCachedPrep(meeting.id, tenantId);
 
     // No cache exists
     if (!cached) {
@@ -51,7 +51,7 @@ async function checkSingleMeetingCache(meeting: Meeting): Promise<CacheCheckResu
 
     // Cache exists and is fresh — but check if new emails arrived from attendees
     const attendeeEmails = meeting.attendees.filter((a) => !a.self).map((a) => a.email);
-    const hasNewEmails = await checkNewEmailsSince(attendeeEmails, cached.createdAt);
+    const hasNewEmails = await checkNewEmailsSince(attendeeEmails, cached.createdAt, tenantId);
 
     if (hasNewEmails) {
       return { meeting, cachedPrep: null, needsRefresh: true, reason: 'new_emails' };
@@ -74,12 +74,13 @@ type CachedRow = {
   createdAt: string;
 };
 
-async function fetchCachedPrep(eventId: string): Promise<CachedRow | null> {
+async function fetchCachedPrep(eventId: string, tenantId: string): Promise<CachedRow | null> {
   try {
     const rows = await db.execute(sql`
       SELECT prep_data, created_at
       FROM meeting_prep_cache
-      WHERE event_id = ${eventId}
+      WHERE tenant_id = ${tenantId}
+        AND event_id = ${eventId}
       ORDER BY created_at DESC
       LIMIT 1
     `);
@@ -100,14 +101,15 @@ async function fetchCachedPrep(eventId: string): Promise<CachedRow | null> {
 // Sub-step 2c: Check if new emails arrived from attendees since cache time
 // ---------------------------------------------------------------------------
 
-async function checkNewEmailsSince(attendeeEmails: string[], since: string): Promise<boolean> {
+async function checkNewEmailsSince(attendeeEmails: string[], since: string, tenantId: string): Promise<boolean> {
   if (attendeeEmails.length === 0) return false;
 
   try {
     const rows = await db.execute(sql`
       SELECT COUNT(*) as count
       FROM emails
-      WHERE from_email = ANY(${attendeeEmails})
+      WHERE tenant_id = ${tenantId}
+        AND from_email = ANY(${attendeeEmails})
         AND received_at > ${since}
       LIMIT 1
     `);

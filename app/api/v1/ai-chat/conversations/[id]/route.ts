@@ -5,13 +5,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getConversation, updateConversationTitle, deleteConversation } from '@/lib/v1/ai-chat/conversations';
+import { getTenantId } from '@/lib/auth/session';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
-    const conversation = await getConversation(id);
+    const conversation = await getConversation(id, tenantId);
 
     if (!conversation) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
@@ -28,6 +34,11 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -36,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
-    await updateConversationTitle(id, body.title);
+    await updateConversationTitle(id, body.title, tenantId);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[ai-chat/conversations/[id] PATCH]', err);
@@ -48,9 +59,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
-    await deleteConversation(id);
+    await deleteConversation(id, tenantId);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[ai-chat/conversations/[id] DELETE]', err);

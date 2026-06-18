@@ -2,7 +2,6 @@
 // Fetches calendar events from Google Calendar via Corsair.
 // Uses lazy import to avoid any circular dependency risk.
 
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import type { CalendarEvent, EventAttendee } from './types';
 
 type RawEvent = Record<string, unknown>;
@@ -22,9 +21,10 @@ type RawAttendee = {
 export async function fetchCalendarEvents(
   timeMin: string,
   timeMax: string,
+  tenantId = 'default',
 ): Promise<CalendarEvent[]> {
   const { corsair } = await import('@/corsair');
-  const tenant = corsair.withTenant(DEFAULT_TENANT);
+  const tenant = corsair.withTenant(tenantId);
 
   const response = await tenant.googlecalendar.api.events.getMany({
     calendarId: 'primary',

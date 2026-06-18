@@ -3,11 +3,16 @@
 
 import { NextResponse } from 'next/server';
 import { fetchCalendarEvents } from '@/lib/v1/calendar/events';
-import { DEFAULT_TENANT } from '@/constants/gmail';
+import { getTenantId } from '@/lib/auth/session';
 
 // ---- GET: List events ----
 
 export async function GET(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const now = new Date();
@@ -20,7 +25,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid date format.' }, { status: 400 });
     }
 
-    const events = await fetchCalendarEvents(timeMin, timeMax);
+    const events = await fetchCalendarEvents(timeMin, timeMax, tenantId);
 
     // Group by LOCAL date
     const byDay: Record<string, typeof events> = {};
@@ -54,6 +59,10 @@ export async function GET(request: Request) {
 // Body: { summary, description?, location?, startDateTime, endDateTime, attendeeEmails?, meetingType?: 'none'|'meet'|'zoom', zoomLink? }
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { summary, description, location, startDateTime, endDateTime, attendeeEmails, meetingType, zoomLink, skipNotification } = body;
@@ -67,7 +76,7 @@ export async function POST(request: Request) {
     }
 
     const { corsair } = await import('@/corsair');
-    const tenant = corsair.withTenant(DEFAULT_TENANT);
+    const tenant = corsair.withTenant(tenantId);
 
     const attendees = Array.isArray(attendeeEmails)
       ? attendeeEmails.filter((e: string) => e.includes('@')).map((email: string) => ({ email }))

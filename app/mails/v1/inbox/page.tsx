@@ -64,7 +64,15 @@ function InboxInner() {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   const [syncModal, setSyncModal] = useState(false);
-
+  // Add this state next to your existing syncing/error states
+  const [syncProgress, setSyncProgress] = useState<{
+    phase: 'idle' | 'syncing' | 'classifying' | 'done' | 'error';
+    ingested: number;
+    total: number;
+    durationMs: number | null;
+    message: string;
+  }>({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' });
+  
   useEffect(() => {
     if (!threadStatusOpen) return;
     const handler = (e: MouseEvent) => { if (threadStatusRef.current && !threadStatusRef.current.contains(e.target as Node)) setThreadStatusOpen(false); };
@@ -108,12 +116,62 @@ function InboxInner() {
   useEffect(() => { loadInbox(); }, [loadInbox]);
   useEffect(() => { if (selectedThreadId) loadThread(selectedThreadId); else { setMessages([]); setDraftReply(null); setShowReplyBox(false); } }, [selectedThreadId, loadThread]);
 
-  async function handleSync() {
-    setSyncing(true); setError('');
-    try { const res = await fetch('/api/v1/sync?limit=5', { method: 'POST' }); if (!res.ok) throw new Error('Sync failed'); await loadInbox(); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Sync failed'); }
-    finally { setSyncing(false); }
+
+async function handleSync() {
+  setSyncing(true);
+  setError('');
+  setSyncProgress({ phase: 'syncing', ingested: 0, total: 0, durationMs: null, message: 'Starting sync...' });
+
+  try {
+    const res = await fetch('/api/v1/sync?limit=50', { method: 'POST' });
+    if (!res.ok) throw new Error('Sync failed');
+
+    // Poll until done
+    let status = 'syncing';
+    while (status === 'syncing') {
+      await new Promise((r) => setTimeout(r, 2000));
+      const poll = await fetch('/api/v1/sync');
+      const data = await poll.json();
+      status = data.status;
+
+      if (status === 'syncing') {
+        const isClassifying = data.fetched === data.total && data.total > 0;
+        setSyncProgress({
+          phase: isClassifying ? 'classifying' : 'syncing',
+          ingested: data.ingested,
+          total: data.total,
+          durationMs: null,
+          message: isClassifying
+            ? 'Running AI analysis & embeddings...'
+            : `Syncing ${data.ingested} / ${data.total} emails...`,
+        });
+      } else if (status === 'done') {
+        setSyncProgress({
+          phase: 'done',
+          ingested: data.ingested,
+          total: data.total,
+          durationMs: data.durationMs,
+          message: `Synced ${data.ingested} emails`,
+        });
+      } else if (status === 'error') {
+        throw new Error('Sync pipeline failed');
+      }
+    }
+
+    await loadInbox();
+  } catch (err) {
+    setSyncProgress({
+      phase: 'error',
+      ingested: 0,
+      total: 0,
+      durationMs: null,
+      message: err instanceof Error ? err.message : 'Sync failed',
+    });
+    setError(err instanceof Error ? err.message : 'Sync failed');
+  } finally {
+    setSyncing(false);
   }
+}
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
@@ -359,21 +417,134 @@ function InboxInner() {
       </div>
 
 {/* ── Sync modal ── */}
-      {syncModal && (
+{syncModal && (
   <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
     <div className="rounded-2xl border border-mail-border bg-mail-surface p-6 w-[400px] shadow-2xl">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-base font-semibold m-0 flex items-center gap-2">Sync Emails</h3>
-        <button onClick={() => setSyncModal(false)} className="p-1 rounded-md text-mail-subtle hover:text-mail-muted hover:bg-mail-hover transition-colors cursor-pointer border-none bg-transparent"><X size={16} /></button>
-      </div>
-      <p className="text-[13px] text-mail-muted m-0 mb-2">This will sync your latest emails from Gmail.</p>
-      <p className="text-[12px] text-mail-subtle m-0 mb-5">Avoid clicking multiple times.</p>
-      <div className="flex gap-2">
-        <button onClick={() => setSyncModal(false)} className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors">Cancel</button>
-        <button onClick={async () => { await handleSync(); setSyncModal(false); }} disabled={syncing}
-          className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
-          {syncing ? <><Loader2 size={13} className="animate-spin" /> Syncing...</> : 'Start Sync'}
+        <button
+          onClick={() => { if (!syncing) { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); } }}
+          className="p-1 rounded-md text-mail-subtle hover:text-mail-muted hover:bg-mail-hover transition-colors cursor-pointer border-none bg-transparent"
+          disabled={syncing}
+        >
+          <X size={16} />
         </button>
+      </div>
+
+      {/* ── Idle state ── */}
+      {syncProgress.phase === 'idle' && (
+        <>
+          <p className="text-[13px] text-mail-muted m-0 mb-2">This will sync your latest 500 emails from Gmail.</p>
+          <p className="text-[12px] text-mail-subtle m-0 mb-5">Emails will be AI-analyzed and embedded for search after sync.</p>
+        </>
+      )}
+
+      {/* ── Syncing / Classifying state ── */}
+      {(syncProgress.phase === 'syncing' || syncProgress.phase === 'classifying') && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Loader2 size={14} className="animate-spin text-mail-accent" />
+            <span className="text-[13px] text-mail-muted">{syncProgress.message}</span>
+          </div>
+
+          {/* Progress bar */}
+          {syncProgress.total > 0 && (
+            <div className="w-full bg-mail-hover rounded-full h-2 mb-2">
+              <div
+                className="bg-mail-accent h-2 rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${syncProgress.phase === 'classifying' ? 100 : Math.round((syncProgress.ingested / syncProgress.total) * 100)}%`,
+                }}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-between text-[11px] text-mail-subtle">
+            <span>
+              {syncProgress.phase === 'classifying'
+                ? 'AI processing...'
+                : `${syncProgress.ingested} of ${syncProgress.total} emails`}
+            </span>
+            <span>
+              {syncProgress.phase === 'classifying'
+                ? 'This may take a few minutes'
+                : `${syncProgress.total > 0 ? Math.round((syncProgress.ingested / syncProgress.total) * 100) : 0}%`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Done state ── */}
+      {syncProgress.phase === 'done' && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <span className="text-[13px] text-green-400 font-medium">{syncProgress.message}</span>
+          </div>
+          {syncProgress.durationMs && (
+            <p className="text-[11px] text-mail-subtle m-0">
+              Completed in {(syncProgress.durationMs / 1000).toFixed(1)}s
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Error state ── */}
+      {syncProgress.phase === 'error' && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
+              <X size={12} className="text-red-400" />
+            </div>
+            <span className="text-[13px] text-red-400">{syncProgress.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Buttons ── */}
+      <div className="flex gap-2">
+        {syncProgress.phase === 'done' ? (
+          <button
+            onClick={() => { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); }}
+            className="flex-1 py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors"
+          >
+            Done
+          </button>
+        ) : syncProgress.phase === 'error' ? (
+          <>
+            <button
+              onClick={() => { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); }}
+              className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={async () => { await handleSync(); }}
+              className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              Retry
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => { if (!syncing) setSyncModal(false); }}
+              disabled={syncing}
+              className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => { await handleSync(); }}
+              disabled={syncing}
+              className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {syncing ? <><Loader2 size={13} className="animate-spin" /> Syncing...</> : 'Start Sync'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   </div>

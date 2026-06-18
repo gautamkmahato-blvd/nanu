@@ -35,7 +35,7 @@ type TopicsRow = {
 // Query 1: Received email stats per sender
 // ---------------------------------------------------------------------------
 
-export async function getReceivedStats(excludeEmail?: string): Promise<ReceivedStatsRow[]> {
+export async function getReceivedStats(excludeEmail?: string, tenantId = 'default'): Promise<ReceivedStatsRow[]> {
   const excludeClause = excludeEmail
     ? sql`AND LOWER(from_email) != LOWER(${excludeEmail})`
     : sql``;
@@ -63,7 +63,8 @@ export async function getReceivedStats(excludeEmail?: string): Promise<ReceivedS
         ORDER BY NULLIF(ai_analysis->>'primary_tag', '')
       ) AS primary_tag
     FROM emails
-    WHERE is_sent = false
+    WHERE tenant_id = ${tenantId}
+      AND is_sent = false
       ${excludeClause}
     GROUP BY LOWER(from_email)
     ORDER BY MAX(received_at) DESC
@@ -76,14 +77,15 @@ export async function getReceivedStats(excludeEmail?: string): Promise<ReceivedS
 // Query 2: Sent email counts per recipient
 // ---------------------------------------------------------------------------
 
-export async function getSentStats(): Promise<SentStatsRow[]> {
+export async function getSentStats(tenantId = 'default'): Promise<SentStatsRow[]> {
   const result = await db.execute(sql`
     SELECT
       LOWER(recipient.value::text) AS to_email,
       COUNT(*)::int AS emails_sent
     FROM emails,
       jsonb_array_elements_text(to_emails) AS recipient(value)
-    WHERE is_sent = true
+    WHERE tenant_id = ${tenantId}
+      AND is_sent = true
     GROUP BY LOWER(recipient.value::text)
   `);
 
@@ -94,7 +96,7 @@ export async function getSentStats(): Promise<SentStatsRow[]> {
 // Query 3: Raw AI analysis for topics extraction (JS post-processing)
 // ---------------------------------------------------------------------------
 
-export async function getContactAIData(excludeEmail?: string): Promise<TopicsRow[]> {
+export async function getContactAIData(excludeEmail?: string, tenantId = 'default'): Promise<TopicsRow[]> {
   const excludeClause = excludeEmail
     ? sql`AND LOWER(from_email) != LOWER(${excludeEmail})`
     : sql``;
@@ -104,7 +106,8 @@ export async function getContactAIData(excludeEmail?: string): Promise<TopicsRow
       LOWER(from_email) AS from_email,
       ai_analysis
     FROM emails
-    WHERE is_sent = false
+    WHERE tenant_id = ${tenantId}
+      AND is_sent = false
       AND ai_analysis IS NOT NULL
       ${excludeClause}
   `);

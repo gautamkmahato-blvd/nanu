@@ -1,4 +1,5 @@
 // app/mails/v1/meeting-prep/page.tsx
+// Updated: "View Related Emails" button + right side panel per meeting card.
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -8,7 +9,7 @@ import {
   Loader2, Target, Users, AlertTriangle, Flag, ChevronDown, ChevronUp,
   Lightbulb, ShieldAlert, CheckCircle, Video, ExternalLink,
   MapPin, Clock, ArrowRight, ArrowLeft, Sparkles, Mail,
-  AlertCircle,
+  AlertCircle, X,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,18 @@ type AiPrep = {
   attendeeNotes: Record<string, string>;
 };
 
+// Lightweight shape returned by the API for the side panel
+type RelatedEmail = {
+  id: string;
+  subject: string | null;
+  fromEmail: string;
+  fromName: string | null;
+  snippet: string | null;
+  receivedAt: string;
+  finalScore: number;
+  relevantToAttendees: string[];
+};
+
 type PreparedEvent = {
   id: string;
   summary: string;
@@ -44,6 +57,7 @@ type PreparedEvent = {
   attendeePrep: AttendeePrep[];
   prepSummary: string;
   aiPrep: AiPrep | null;
+  relatedEmails?: RelatedEmail[];
 };
 
 type ApiResponse = {
@@ -92,7 +106,6 @@ export default function MeetingPrepPage() {
 // Content
 // ---------------------------------------------------------------------------
 
-
 function MeetingPrepContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,6 +116,10 @@ function MeetingPrepContent() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Related emails side panel state
+  const [emailPanelEventId, setEmailPanelEventId] = useState<string | null>(null);
+  const emailPanelEvent = events.find((e) => e.id === emailPanelEventId) ?? null;
 
   useEffect(() => {
     const load = async () => {
@@ -124,71 +141,89 @@ function MeetingPrepContent() {
   const totalPending = useMemo(() => events.reduce((s, e) => s + (e.aiPrep?.openItems.length ?? 0), 0), [events]);
   const totalRisks = useMemo(() => events.reduce((s, e) => s + (e.aiPrep?.riskFlags.length ?? 0), 0), [events]);
 
+  // Toggle handler: clicking the same meeting closes the panel, different meeting switches it
+  const handleShowEmails = (eventId: string) => {
+    setEmailPanelEventId((prev) => (prev === eventId ? null : eventId));
+  };
+
   return (
-    <div className="bg-mail-bg h-full overflow-y-auto text-mail-text font-sans">
-      {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b border-mail-border">
-        <div className="flex justify-between items-center mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Target size={18} className="text-mail-accent" />
-              <h1 className="text-lg font-semibold m-0">Meeting Prep</h1>
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-mail-accent-soft text-mail-accent">AI Powered</span>
-            </div>
-            <p className="text-xs text-mail-subtle mt-1 m-0">Briefings for your upcoming meetings · Next 48 hours</p>
-          </div>
-          <button onClick={() => router.push('/mails/v1/calendar')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-xs cursor-pointer hover:bg-mail-hover transition-colors">
-            <ArrowLeft size={13} /> Calendar
-          </button>
-        </div>
-        {events.length > 0 && (
-          <div className="flex items-center gap-2">
-            <StatBadge icon={Target} label="Meetings" value={events.length} color="var(--mail-accent)" />
-            <StatBadge icon={Users} label="People" value={totalAttendees} color="#3b82f6" />
-            {totalPending > 0 && <StatBadge icon={AlertTriangle} label="Open Items" value={totalPending} color="#f59e0b" />}
-            {totalRisks > 0 && <StatBadge icon={Flag} label="Risks" value={totalRisks} color="#ef4444" />}
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="px-6 py-5 max-w-[900px]">
-        {loading && (
-          <div className="text-center py-16 flex flex-col items-center gap-3">
-            <Loader2 size={24} className="animate-spin text-mail-accent" />
-            <div className="text-sm text-mail-subtle">Preparing meeting briefs...</div>
-            <div className="text-xs text-mail-subtle/60">Searching emails with RAG · Analyzing with AI</div>
-          </div>
-        )}
-
-        {fetchError && <div className="px-4 py-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-[13px] mb-4">{fetchError}</div>}
-
-        {/* Pipeline errors for individual meetings */}
-        {errors.length > 0 && (
-          <div className="mb-4">
-            {errors.map((e, i) => (
-              <div key={i} className="px-4 py-2.5 rounded-lg bg-red-500/5 border border-red-500/20 text-[12px] text-red-400 mb-2">
-                <span className="font-medium">{e.meetingSummary || 'Unknown meeting'}:</span> {e.error}
+    <div className="flex h-full">
+      {/* ── Main content area ── */}
+      <div className="bg-mail-bg flex-1 min-w-0 h-full overflow-y-auto text-mail-text font-sans">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-mail-border">
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Target size={18} className="text-mail-accent" />
+                <h1 className="text-lg font-semibold m-0">Meeting Prep</h1>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-mail-accent-soft text-mail-accent">AI Powered</span>
               </div>
-            ))}
+              <p className="text-xs text-mail-subtle mt-1 m-0">Briefings for your upcoming meetings · Next 48 hours</p>
+            </div>
+            <button onClick={() => router.push('/mails/v1/calendar')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-xs cursor-pointer hover:bg-mail-hover transition-colors">
+              <ArrowLeft size={13} /> Calendar
+            </button>
           </div>
-        )}
+          {events.length > 0 && (
+            <div className="flex items-center gap-2">
+              <StatBadge icon={Target} label="Meetings" value={events.length} color="var(--mail-accent)" />
+              <StatBadge icon={Users} label="People" value={totalAttendees} color="#3b82f6" />
+              {totalPending > 0 && <StatBadge icon={AlertTriangle} label="Open Items" value={totalPending} color="#f59e0b" />}
+              {totalRisks > 0 && <StatBadge icon={Flag} label="Risks" value={totalRisks} color="#ef4444" />}
+            </div>
+          )}
+        </div>
 
-        {!loading && events.length === 0 && !fetchError && (
-          <div className="text-center py-16 flex flex-col items-center gap-3">
-            <Target size={36} strokeWidth={1} className="text-mail-subtle opacity-30" />
-            <div className="text-base font-medium text-mail-text">No upcoming meetings</div>
-            <div className="text-[13px] text-mail-subtle">No meetings with attendees in the next 48 hours</div>
-          </div>
-        )}
+        {/* Content */}
+        <div className="px-6 py-5 max-w-[900px]">
+          {loading && (
+            <div className="text-center py-16 flex flex-col items-center gap-3">
+              <Loader2 size={24} className="animate-spin text-mail-accent" />
+              <div className="text-sm text-mail-subtle">Preparing meeting briefs...</div>
+              <div className="text-xs text-mail-subtle/60">Searching emails with RAG · Analyzing with AI</div>
+            </div>
+          )}
 
-        {events.map((event) => (
-          <MeetingCard key={event.id} event={event}
-            isExpanded={expandedId === event.id}
-            isHighlighted={highlightEventId === event.id}
-            onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)} />
-        ))}
+          {fetchError && <div className="px-4 py-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-[13px] mb-4">{fetchError}</div>}
+
+          {/* Pipeline errors for individual meetings */}
+          {errors.length > 0 && (
+            <div className="mb-4">
+              {errors.map((e, i) => (
+                <div key={i} className="px-4 py-2.5 rounded-lg bg-red-500/5 border border-red-500/20 text-[12px] text-red-400 mb-2">
+                  <span className="font-medium">{e.meetingSummary || 'Unknown meeting'}:</span> {e.error}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && events.length === 0 && !fetchError && (
+            <div className="text-center py-16 flex flex-col items-center gap-3">
+              <Target size={36} strokeWidth={1} className="text-mail-subtle opacity-30" />
+              <div className="text-base font-medium text-mail-text">No upcoming meetings</div>
+              <div className="text-[13px] text-mail-subtle">No meetings with attendees in the next 48 hours</div>
+            </div>
+          )}
+
+          {events.map((event) => (
+            <MeetingCard key={event.id} event={event}
+              isExpanded={expandedId === event.id}
+              isHighlighted={highlightEventId === event.id}
+              isEmailPanelActive={emailPanelEventId === event.id}
+              onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)}
+              onShowEmails={handleShowEmails} />
+          ))}
+        </div>
       </div>
+
+      {/* ── Related Emails side panel ── */}
+      {emailPanelEvent && (
+        <RelatedEmailsPanel
+          event={emailPanelEvent}
+          onClose={() => setEmailPanelEventId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -197,15 +232,21 @@ function MeetingPrepContent() {
 // Meeting Card
 // ---------------------------------------------------------------------------
 
-function MeetingCard({ event, isExpanded, isHighlighted, onToggle }: {
-  event: PreparedEvent; isExpanded: boolean; isHighlighted: boolean; onToggle: () => void;
+function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onToggle, onShowEmails }: {
+  event: PreparedEvent;
+  isExpanded: boolean;
+  isHighlighted: boolean;
+  isEmailPanelActive: boolean;
+  onToggle: () => void;
+  onShowEmails: (eventId: string) => void;
 }) {
   const tu = timeUntil(event.startTime);
   const ai = event.aiPrep;
   const hasAiContent = ai && (ai.briefing || ai.talkingPoints.length > 0);
+  const emailCount = event.relatedEmails?.length ?? 0;
 
   return (
-    <div className={`rounded-xl border mb-3 overflow-hidden transition-colors ${isHighlighted ? 'border-mail-accent' : 'border-mail-border'}`}>
+    <div className={`rounded-xl border mb-3 overflow-hidden transition-colors ${isHighlighted ? 'border-mail-accent' : isEmailPanelActive ? 'border-mail-accent/50' : 'border-mail-border'}`}>
       {/* Header — always visible */}
       <div onClick={onToggle} className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-mail-hover transition-colors">
         <div className="flex-1 min-w-0">
@@ -309,7 +350,7 @@ function MeetingCard({ event, isExpanded, isHighlighted, onToggle }: {
           )}
 
           {/* Actions */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 flex-wrap">
             {event.hangoutLink && (
               <a href={event.hangoutLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-lg border-none bg-blue-500 hover:bg-blue-600 text-white no-underline font-medium transition-colors">
                 <Video size={13} /> Join Meeting
@@ -320,9 +361,100 @@ function MeetingCard({ event, isExpanded, isHighlighted, onToggle }: {
                 <ExternalLink size={12} /> Open in Calendar
               </a>
             )}
+            {/* Related emails button — only show when emails exist */}
+            {emailCount > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onShowEmails(event.id); }}
+                className={`flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-lg border transition-colors cursor-pointer ${
+                  isEmailPanelActive
+                    ? 'border-mail-accent bg-mail-accent-soft text-mail-accent'
+                    : 'border-mail-border text-mail-muted hover:bg-mail-hover'
+                }`}
+              >
+                <Mail size={12} /> View Related Emails ({emailCount})
+              </button>
+            )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Related Emails Side Panel
+// ---------------------------------------------------------------------------
+
+function RelatedEmailsPanel({ event, onClose }: { event: PreparedEvent; onClose: () => void }) {
+  const router = useRouter();
+  const emails = event.relatedEmails ?? [];
+
+  return (
+    <div className="w-[380px] shrink-0 h-full border-l border-mail-border bg-mail-bg overflow-y-auto">
+      {/* Sticky header */}
+      <div className="px-4 py-3 border-b border-mail-border flex items-center justify-between sticky top-0 bg-mail-bg z-10">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-mail-text">
+            <Mail size={14} className="text-mail-accent shrink-0" />
+            Related Emails
+            <span className="text-[10px] font-normal text-mail-subtle ml-1">({emails.length})</span>
+          </div>
+          <div className="text-[11px] text-mail-subtle mt-0.5 truncate">{event.summary}</div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-mail-subtle hover:text-mail-text transition-colors p-1 rounded hover:bg-mail-hover cursor-pointer shrink-0 ml-2"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* Email list */}
+      <div className="px-3 py-2">
+        {emails.length === 0 ? (
+          <div className="text-center py-8 text-mail-subtle text-xs">No related emails found</div>
+        ) : (
+          emails.map((email) => (
+            <div
+              key={email.id}
+              onClick={() => router.push(`/mails/v1/ai-email-details/${email.id}`)}
+              className="px-3 py-3 rounded-lg cursor-pointer hover:bg-mail-hover transition-colors mb-1 border border-transparent hover:border-mail-border group"
+            >
+              {/* From + date */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[12px] font-medium text-mail-text truncate max-w-[220px]">
+                  {email.fromName || email.fromEmail}
+                </span>
+                <span className="text-[10px] text-mail-subtle shrink-0 ml-2">
+                  {new Date(email.receivedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+
+              {/* Subject */}
+              <div className="text-[12px] text-mail-muted truncate">{email.subject || '(no subject)'}</div>
+
+              {/* Snippet */}
+              {email.snippet && (
+                <div className="text-[11px] text-mail-subtle mt-1 line-clamp-2 leading-relaxed">{email.snippet}</div>
+              )}
+
+              {/* Score + attendee count */}
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-mail-accent-soft text-mail-accent">
+                  Relevance {(email.finalScore * 100).toFixed(0)}%
+                </span>
+                {email.relevantToAttendees.length > 0 && (
+                  <span className="text-[9px] text-mail-subtle flex items-center gap-0.5">
+                    <Users size={8} /> {email.relevantToAttendees.length} attendee{email.relevantToAttendees.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {/* Arrow hint on hover */}
+                <ArrowRight size={10} className="text-mail-subtle opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

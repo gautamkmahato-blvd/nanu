@@ -1,10 +1,12 @@
 // app/api/v1/categories/route.ts
 // GET: List all categories as a flat list (UI builds the tree)
 // POST: Create a new category
+// FIXED: tenant_id filtering on all queries
 
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 const ALLOWED_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6',
@@ -12,6 +14,11 @@ const ALLOWED_COLORS = [
 ];
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const result = await db.execute(sql`
       SELECT
@@ -23,6 +30,7 @@ export async function GET() {
         COUNT(ec.email_id)::int AS email_count
       FROM categories c
       LEFT JOIN email_categories ec ON ec.category_id = c.id
+      WHERE c.tenant_id = ${tenantId}
       GROUP BY c.id, c.name, c.parent_id, c.color, c.created_at
       ORDER BY c.created_at ASC
     `);
@@ -44,6 +52,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const name = (body.name ?? '').trim();
@@ -58,10 +71,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Category name too long (max 100 chars)' }, { status: 400 });
     }
 
-    // Validate parent exists if provided
+    // Validate parent exists AND belongs to this tenant
     if (parentId) {
       const parent = await db.execute(sql`
-        SELECT id FROM categories WHERE id = ${parentId} LIMIT 1
+        SELECT id FROM categories WHERE id = ${parentId} AND tenant_id = ${tenantId} LIMIT 1
       `);
       if (parent.rows.length === 0) {
         return NextResponse.json({ error: 'Parent category not found' }, { status: 404 });
@@ -70,9 +83,10 @@ export async function POST(request: Request) {
 
     const safeColor = ALLOWED_COLORS.includes(color) ? color : '#6b7280';
 
+    // Include tenant_id in the insert
     const result = await db.execute(sql`
-      INSERT INTO categories (id, name, parent_id, color)
-      VALUES (gen_random_uuid(), ${name}, ${parentId}, ${safeColor})
+      INSERT INTO categories (id, tenant_id, name, parent_id, color)
+      VALUES (gen_random_uuid(), ${tenantId}, ${name}, ${parentId}, ${safeColor})
       RETURNING id, name, parent_id, color, created_at
     `);
 

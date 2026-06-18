@@ -67,13 +67,13 @@ export type MeetingSearchDebug = {
 // Main
 // ---------------------------------------------------------------------------
 
-export async function hybridSearch(meetingQueries: MeetingQueries[]): Promise<StepResult<{ results: MeetingSearchResults[]; debug: MeetingSearchDebug[] }>> {
+export async function hybridSearch(meetingQueries: MeetingQueries[], tenantId = 'default'): Promise<StepResult<{ results: MeetingSearchResults[]; debug: MeetingSearchDebug[] }>> {
   try {
     const results: MeetingSearchResults[] = [];
     const debug: MeetingSearchDebug[] = [];
 
     for (const mq of meetingQueries) {
-      const { attendeeResults, attendeeDebug } = await searchForMeeting(mq);
+      const { attendeeResults, attendeeDebug } = await searchForMeeting(mq, tenantId);
       results.push({ meeting: mq.meeting, attendeeResults });
       debug.push({ meetingId: mq.meeting.id, attendeeDebug });
     }
@@ -88,12 +88,12 @@ export async function hybridSearch(meetingQueries: MeetingQueries[]): Promise<St
 // Sub-step 4a: Search for all attendees of a single meeting
 // ---------------------------------------------------------------------------
 
-async function searchForMeeting(mq: MeetingQueries): Promise<{ attendeeResults: AttendeeSearchResults[]; attendeeDebug: AttendeeSearchDebug[] }> {
+async function searchForMeeting(mq: MeetingQueries, tenantId: string): Promise<{ attendeeResults: AttendeeSearchResults[]; attendeeDebug: AttendeeSearchDebug[] }> {
   const attendeeResults: AttendeeSearchResults[] = [];
   const attendeeDebug: AttendeeSearchDebug[] = [];
 
   for (const aq of mq.attendeeQueries) {
-    const { emails, queryDebug } = await searchForAttendee(aq.queries);
+    const { emails, queryDebug } = await searchForAttendee(aq.queries, tenantId);
     attendeeResults.push({
       attendeeEmail: aq.attendeeEmail,
       attendeeName: aq.attendeeName,
@@ -114,12 +114,12 @@ async function searchForMeeting(mq: MeetingQueries): Promise<{ attendeeResults: 
 // Sub-step 4b: Run all queries for a single attendee, merge results
 // ---------------------------------------------------------------------------
 
-async function searchForAttendee(queries: string[]): Promise<{ emails: ScoredEmail[]; queryDebug: SearchDebugEntry[] }> {
+async function searchForAttendee(queries: string[], tenantId: string): Promise<{ emails: ScoredEmail[]; queryDebug: SearchDebugEntry[] }> {
   const allResults = new Map<string, ScoredEmail>();
   const queryDebug: SearchDebugEntry[] = [];
 
   for (const query of queries) {
-    const { scored, debug } = await runHybridSearchForQuery(query);
+    const { scored, debug } = await runHybridSearchForQuery(query, tenantId);
     queryDebug.push(debug);
 
     for (const result of scored) {
@@ -138,10 +138,10 @@ async function searchForAttendee(queries: string[]): Promise<{ emails: ScoredEma
 // Sub-step 4c: Run hybrid search for a single query + combine scores
 // ---------------------------------------------------------------------------
 
-async function runHybridSearchForQuery(query: string): Promise<{ scored: ScoredEmail[]; debug: SearchDebugEntry }> {
+async function runHybridSearchForQuery(query: string, tenantId: string): Promise<{ scored: ScoredEmail[]; debug: SearchDebugEntry }> {
   const [semanticRaw, keywordRaw] = await Promise.all([
-    runSemanticSearch(query),
-    runKeywordSearch(query),
+    runSemanticSearch(query, tenantId),
+    runKeywordSearch(query, tenantId),
   ]);
 
   const debugSemantic = semanticRaw.map((r) => ({ emailId: r.id, subject: r.subject, score: round(r.score) }));
@@ -241,7 +241,7 @@ type RawSearchRow = {
   received_at: string; ai_analysis: any; score: number;
 };
 
-async function runSemanticSearch(query: string): Promise<RawSearchRow[]> {
+async function runSemanticSearch(query: string, tenantId: string): Promise<RawSearchRow[]> {
   const embeddingResult = await getEmbedding(query);
 
   if (!embeddingResult.ok) {
@@ -259,7 +259,8 @@ async function runSemanticSearch(query: string): Promise<RawSearchRow[]> {
         body_text, snippet, received_at, ai_analysis,
         1 - (embedding <=> ${vectorLiteral}) as score
       FROM emails
-      WHERE embedding IS NOT NULL
+      WHERE tenant_id = ${tenantId}
+        AND embedding IS NOT NULL
         AND 1 - (embedding <=> ${vectorLiteral}) >= 0.55
       ORDER BY embedding <=> ${vectorLiteral}
       LIMIT ${MAX_RESULTS_PER_QUERY}
@@ -287,7 +288,7 @@ async function runSemanticSearch(query: string): Promise<RawSearchRow[]> {
 // Sub-step 4e: Keyword (tsvector) search — uses pre-computed search_vector
 // ---------------------------------------------------------------------------
 
-async function runKeywordSearch(query: string): Promise<RawSearchRow[]> {
+async function runKeywordSearch(query: string, tenantId: string): Promise<RawSearchRow[]> {
   if (!query.trim()) return [];
 
   try {
@@ -296,9 +297,10 @@ async function runKeywordSearch(query: string): Promise<RawSearchRow[]> {
         id, thread_id, from_email, from_name, subject,
         body_text, snippet, received_at, ai_analysis,
         ts_rank_cd(search_vector, to_tsquery('english', ${buildOrQuery(query)})) as score
-FROM emails
-WHERE search_vector IS NOT NULL
-  AND search_vector @@ to_tsquery('english', ${buildOrQuery(query)})
+      FROM emails
+      WHERE tenant_id = ${tenantId}
+        AND search_vector IS NOT NULL
+        AND search_vector @@ to_tsquery('english', ${buildOrQuery(query)})
       ORDER BY score DESC
       LIMIT ${MAX_RESULTS_PER_QUERY}
     `);

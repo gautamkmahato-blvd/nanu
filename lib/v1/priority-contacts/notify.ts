@@ -1,12 +1,6 @@
 // lib/v1/priority-contacts/notify.ts
 // Called from the webhook handler when a new email arrives.
 // Checks if the sender is a priority contact, sends Telegram notification if so.
-//
-// USAGE (add ONE line to your webhook handler):
-//   import { checkAndNotifyPriorityEmail } from '@/lib/v1/priority-contacts/notify';
-//   await checkAndNotifyPriorityEmail({ fromEmail, fromName, subject, snippet });
-//
-// This function is fire-and-forget safe — never throws, never blocks webhook processing.
 
 import { isContactPriority, getNotificationSettings } from './db';
 import { sendTelegramMessage, formatEmailNotification } from './telegram';
@@ -18,18 +12,18 @@ type IncomingEmail = {
   snippet?: string | null;
 };
 
-export async function checkAndNotifyPriorityEmail(email: IncomingEmail): Promise<void> {
+export async function checkAndNotifyPriorityEmail(email: IncomingEmail, tenantId = 'default'): Promise<void> {
   try {
     // Step 1: Is the sender in the priority list?
-    const contact = await isContactPriority(email.fromEmail);
+    const contact = await isContactPriority(email.fromEmail, tenantId);
     if (!contact) {
       console.log(`[priority-notify] ${email.fromEmail} is NOT in priority list — skipping`);
-      return
-    }; // not a priority contact, skip silently
+      return;
+    }
     console.log(`[priority-notify] ${email.fromEmail} IS priority — checking telegram...`);
 
     // Step 2: Is Telegram configured and enabled?
-    const settings = await getNotificationSettings();
+    const settings = await getNotificationSettings(tenantId);
     if (!settings.telegramEnabled) {
       console.log(`[priority-notify] telegram disabled — skipping`);
       return;

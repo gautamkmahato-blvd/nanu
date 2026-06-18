@@ -44,6 +44,7 @@ async function ensureTables(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS ai_conversations (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
         title TEXT NOT NULL DEFAULT 'New Chat',
         message_count INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -54,6 +55,7 @@ async function ensureTables(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS ai_chat_messages (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
         conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
         role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
         content TEXT NOT NULL DEFAULT '',
@@ -68,6 +70,11 @@ async function ensureTables(): Promise<void> {
       ON ai_chat_messages(conversation_id, created_at)
     `);
 
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ai_conversations_tenant_updated_idx
+      ON ai_conversations(tenant_id, updated_at DESC)
+    `);
+
     tablesChecked = true;
   } catch (err) {
     console.warn('[ai-chat] Could not create tables:', err);
@@ -78,12 +85,13 @@ async function ensureTables(): Promise<void> {
 // List conversations (most recent first)
 // ---------------------------------------------------------------------------
 
-export async function listConversations(limit = 50): Promise<Conversation[]> {
+export async function listConversations(limit = 50, tenantId = 'default'): Promise<Conversation[]> {
   await ensureTables();
 
   const rows = await db.execute(sql`
     SELECT id, title, message_count, created_at, updated_at
     FROM ai_conversations
+    WHERE tenant_id = ${tenantId}
     ORDER BY updated_at DESC
     LIMIT ${limit}
   `);
@@ -101,14 +109,15 @@ export async function listConversations(limit = 50): Promise<Conversation[]> {
 // Get single conversation with all messages
 // ---------------------------------------------------------------------------
 
-export async function getConversation(id: string): Promise<ConversationWithMessages | null> {
+export async function getConversation(id: string, tenantId = 'default'): Promise<ConversationWithMessages | null> {
   await ensureTables();
 
   // Fetch conversation
   const convRows = await db.execute(sql`
     SELECT id, title, message_count, created_at, updated_at
     FROM ai_conversations
-    WHERE id = ${id}
+    WHERE tenant_id = ${tenantId}
+      AND id = ${id}
     LIMIT 1
   `);
 
@@ -120,7 +129,8 @@ export async function getConversation(id: string): Promise<ConversationWithMessa
   const msgRows = await db.execute(sql`
     SELECT id, conversation_id, role, content, emails, tools_used, created_at
     FROM ai_chat_messages
-    WHERE conversation_id = ${id}
+    WHERE tenant_id = ${tenantId}
+      AND conversation_id = ${id}
     ORDER BY created_at ASC
   `);
 
@@ -148,14 +158,14 @@ export async function getConversation(id: string): Promise<ConversationWithMessa
 // Create a new conversation
 // ---------------------------------------------------------------------------
 
-export async function createConversation(title?: string): Promise<string> {
+export async function createConversation(title?: string, tenantId = 'default'): Promise<string> {
   await ensureTables();
 
   const displayTitle = title?.trim().slice(0, 100) || 'New Chat';
 
   const rows = await db.execute(sql`
-    INSERT INTO ai_conversations (title)
-    VALUES (${displayTitle})
+    INSERT INTO ai_conversations (tenant_id, title)
+    VALUES (${tenantId}, ${displayTitle})
     RETURNING id
   `);
 
@@ -172,6 +182,7 @@ export async function addMessage(
   content: string,
   emails?: any[] | null,
   toolsUsed?: string[] | null,
+  tenantId = 'default',
 ): Promise<string> {
   await ensureTables();
 
@@ -181,8 +192,9 @@ const toolsArray = toolsUsed && toolsUsed.length > 0
   : sql`NULL`;
 
 const rows = await db.execute(sql`
-  INSERT INTO ai_chat_messages (conversation_id, role, content, emails, tools_used)
+  INSERT INTO ai_chat_messages (tenant_id, conversation_id, role, content, emails, tools_used)
   VALUES (
+    ${tenantId},
     ${conversationId},
     ${role},
     ${content},
@@ -197,7 +209,8 @@ const rows = await db.execute(sql`
     UPDATE ai_conversations
     SET message_count = message_count + 1,
         updated_at = NOW()
-    WHERE id = ${conversationId}
+    WHERE tenant_id = ${tenantId}
+      AND id = ${conversationId}
   `);
 
   return String(rows.rows[0].id);
@@ -207,14 +220,15 @@ const rows = await db.execute(sql`
 // Update conversation title
 // ---------------------------------------------------------------------------
 
-export async function updateConversationTitle(id: string, title: string): Promise<void> {
+export async function updateConversationTitle(id: string, title: string, tenantId = 'default'): Promise<void> {
   await ensureTables();
 
   await db.execute(sql`
     UPDATE ai_conversations
     SET title = ${title.trim().slice(0, 100)},
         updated_at = NOW()
-    WHERE id = ${id}
+    WHERE tenant_id = ${tenantId}
+      AND id = ${id}
   `);
 }
 
@@ -232,10 +246,12 @@ export function generateTitle(firstMessage: string): string {
 // Delete a conversation (cascade deletes messages)
 // ---------------------------------------------------------------------------
 
-export async function deleteConversation(id: string): Promise<void> {
+export async function deleteConversation(id: string, tenantId = 'default'): Promise<void> {
   await ensureTables();
 
   await db.execute(sql`
-    DELETE FROM ai_conversations WHERE id = ${id}
+    DELETE FROM ai_conversations
+    WHERE tenant_id = ${tenantId}
+      AND id = ${id}
   `);
 }

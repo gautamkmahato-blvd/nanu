@@ -19,18 +19,22 @@ async function ensureTables(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS priority_contacts (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-        email TEXT NOT NULL UNIQUE,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
+        email TEXT NOT NULL,
         name TEXT,
         notes TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        CONSTRAINT priority_contacts_tenant_email_unique UNIQUE (tenant_id, email)
       )
     `);
 
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS notification_settings (
-        key TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
+        key TEXT NOT NULL,
         value TEXT NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, key)
       )
     `);
 
@@ -49,12 +53,13 @@ async function ensureTables(): Promise<void> {
 // Priority Contacts CRUD
 // ---------------------------------------------------------------------------
 
-export async function listContacts(): Promise<PriorityContact[]> {
+export async function listContacts(tenantId = 'default'): Promise<PriorityContact[]> {
   await ensureTables();
 
   const rows = await db.execute(sql`
     SELECT id, email, name, notes, created_at
     FROM priority_contacts
+    WHERE tenant_id = ${tenantId}
     ORDER BY created_at DESC
   `);
 
@@ -71,6 +76,7 @@ export async function addContact(
   email: string,
   name?: string | null,
   notes?: string | null,
+  tenantId = 'default',
 ): Promise<PriorityContact> {
   await ensureTables();
 
@@ -81,9 +87,9 @@ export async function addContact(
   }
 
   const rows = await db.execute(sql`
-    INSERT INTO priority_contacts (email, name, notes)
-    VALUES (${normalized}, ${name ?? null}, ${notes ?? null})
-    ON CONFLICT (email) DO UPDATE SET
+    INSERT INTO priority_contacts (tenant_id, email, name, notes)
+    VALUES (${tenantId}, ${normalized}, ${name ?? null}, ${notes ?? null})
+    ON CONFLICT (tenant_id, email) DO UPDATE SET
       name = COALESCE(EXCLUDED.name, priority_contacts.name),
       notes = COALESCE(EXCLUDED.notes, priority_contacts.notes)
     RETURNING id, email, name, notes, created_at
@@ -99,17 +105,19 @@ export async function addContact(
   };
 }
 
-export async function deleteContact(id: string): Promise<boolean> {
+export async function deleteContact(id: string, tenantId = 'default'): Promise<boolean> {
   await ensureTables();
 
   const result = await db.execute(sql`
-    DELETE FROM priority_contacts WHERE id = ${id}
+    DELETE FROM priority_contacts
+    WHERE tenant_id = ${tenantId}
+      AND id = ${id}
   `);
 
   return (result.rowCount ?? 0) > 0;
 }
 
-export async function isContactPriority(email: string): Promise<PriorityContact | null> {
+export async function isContactPriority(email: string, tenantId = 'default'): Promise<PriorityContact | null> {
   await ensureTables();
 
   const normalized = email.trim().toLowerCase();
@@ -117,7 +125,8 @@ export async function isContactPriority(email: string): Promise<PriorityContact 
   const rows = await db.execute(sql`
     SELECT id, email, name, notes, created_at
     FROM priority_contacts
-    WHERE email = ${normalized}
+    WHERE tenant_id = ${tenantId}
+      AND email = ${normalized}
     LIMIT 1
   `);
 
@@ -137,12 +146,13 @@ export async function isContactPriority(email: string): Promise<PriorityContact 
 // Notification Settings
 // ---------------------------------------------------------------------------
 
-export async function getNotificationSettings(): Promise<NotificationSettings> {
+export async function getNotificationSettings(tenantId = 'default'): Promise<NotificationSettings> {
   await ensureTables();
 
   const rows = await db.execute(sql`
     SELECT key, value FROM notification_settings
-    WHERE key IN ('telegram_bot_token', 'telegram_chat_id', 'telegram_enabled')
+    WHERE tenant_id = ${tenantId}
+      AND key IN ('telegram_bot_token', 'telegram_chat_id', 'telegram_enabled')
   `);
 
   const settings: Record<string, string> = {};
@@ -159,6 +169,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
 
 export async function updateNotificationSettings(
   updates: Partial<NotificationSettings>,
+  tenantId = 'default',
 ): Promise<NotificationSettings> {
   await ensureTables();
 
@@ -172,11 +183,11 @@ export async function updateNotificationSettings(
     if (value === undefined) continue;
 
     await db.execute(sql`
-      INSERT INTO notification_settings (key, value, updated_at)
-      VALUES (${key}, ${value}, NOW())
-      ON CONFLICT (key) DO UPDATE SET value = ${value}, updated_at = NOW()
+      INSERT INTO notification_settings (tenant_id, key, value, updated_at)
+      VALUES (${tenantId}, ${key}, ${value}, NOW())
+      ON CONFLICT (tenant_id, key) DO UPDATE SET value = ${value}, updated_at = NOW()
     `);
   }
 
-  return getNotificationSettings();
+  return getNotificationSettings(tenantId);
 }

@@ -11,12 +11,13 @@ import { db } from '@/db';
 
 export async function cacheAndRespond(
   meetings: Meeting[],
-  preps: PrepResult[]
+  preps: PrepResult[],
+  tenantId = 'default',
 ): Promise<StepResult<void>> {
   try {
     for (const prep of preps) {
       const meeting = meetings.find((m) => m.id === prep.meetingId);
-      await cacheSinglePrep(prep, meeting);
+      await cacheSinglePrep(prep, meeting, tenantId);
     }
     return { ok: true, data: undefined };
   } catch (err) {
@@ -29,16 +30,16 @@ export async function cacheAndRespond(
 // Sub-step 7a: Upsert a single prep into the cache table
 // ---------------------------------------------------------------------------
 
-async function cacheSinglePrep(prep: PrepResult, meeting: Meeting | undefined): Promise<void> {
+async function cacheSinglePrep(prep: PrepResult, meeting: Meeting | undefined, tenantId: string): Promise<void> {
   try {
     const prepJson = JSON.stringify(prep);
     const summary = prep.meetingSummary ?? '';
     const startTime = meeting?.startTime ?? new Date().toISOString();
 
     await db.execute(sql`
-      INSERT INTO meeting_prep_cache (event_id, event_summary, event_start, prep_data, created_at)
-      VALUES (${prep.meetingId}, ${summary}, ${startTime}, ${prepJson}::jsonb, NOW())
-      ON CONFLICT (event_id)
+      INSERT INTO meeting_prep_cache (tenant_id, event_id, event_summary, event_start, prep_data, created_at)
+      VALUES (${tenantId}, ${prep.meetingId}, ${summary}, ${startTime}, ${prepJson}::jsonb, NOW())
+      ON CONFLICT (tenant_id, event_id)
       DO UPDATE SET event_summary = ${summary}, event_start = ${startTime}, prep_data = ${prepJson}::jsonb, created_at = NOW()
     `);
   } catch (err) {

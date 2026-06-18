@@ -42,13 +42,14 @@ async function upsertContactsFromEmail(
     await db
       .insert(contacts)
       .values({
+        tenantId: row.tenantId,
         email: counterpart.email,
         name: counterpart.name,
         interactionCount: 1,
         lastInteractionAt: row.receivedAt,
       })
       .onConflictDoUpdate({
-        target: contacts.email,
+        target: [contacts.tenantId, contacts.email],
         set: {
           name: sql`COALESCE(${contacts.name}, ${counterpart.name})`,
           interactionCount: sql`${contacts.interactionCount} + 1`,
@@ -62,9 +63,10 @@ async function upsertContactsFromEmail(
 export async function ingestMessage(
   msg: GmailMessage,
   ownEmail: string,
+  tenantId = 'default',
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const parsed = parseGmailMessage(msg);
-  const result = emailRowSchema.safeParse(parsed);
+  const result = emailRowSchema.safeParse({ ...parsed, tenantId });
 
   if (!result.success) {
     const error = JSON.stringify(result.error.flatten().fieldErrors);

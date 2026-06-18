@@ -3,8 +3,14 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const result = await db.execute(sql`
       SELECT
@@ -28,7 +34,8 @@ export async function GET() {
         (ai_analysis->>'opportunity_score')::int AS opportunity_score,
         (ai_analysis->>'risk_score')::int AS risk_score
       FROM emails
-      WHERE is_starred = true
+      WHERE tenant_id = ${tenantId}
+        AND is_starred = true
       ORDER BY received_at DESC
       LIMIT 50
     `);

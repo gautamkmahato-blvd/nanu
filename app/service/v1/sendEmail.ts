@@ -1,9 +1,8 @@
 // app/service/v1/sendEmail.ts  (UPDATED — adds replyToThread, shared dispatch)
 // Send + reply through Corsair, then mirror the sent message into our DB.
 
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import { corsair } from '@/corsair';
 import { db } from '@/db';
 import { emails } from '@/db/schema';
@@ -28,8 +27,8 @@ function dedupe(addresses: string[]): string[] {
   return [...new Set(addresses.map((address) => address.toLowerCase()))];
 }
 
-async function resolveFrom(): Promise<string> {
-  const from = await getOwnEmail();
+async function resolveFrom(tenantId: string): Promise<string> {
+  const from = await getOwnEmail(tenantId);
   if (!from) {
     throw new SendEmailError(
       'Could not determine your Gmail address. Set OWN_GMAIL_ADDRESS in .env or run a sync first.',
@@ -48,7 +47,7 @@ async function dispatchAndMirror(
   raw: string,
   from: string,
   threadId?: string,
-  tenantId = DEFAULT_TENANT,
+  tenantId = 'default',
 ): Promise<SendMessageResult> {
   const tenant = corsair.withTenant(tenantId);
 
@@ -97,9 +96,9 @@ async function dispatchAndMirror(
 
 export async function sendEmail(
   input: SendEmailInput,
-  tenantId = DEFAULT_TENANT,
+  tenantId = 'default',
 ): Promise<SendMessageResult> {
-  const from = await resolveFrom();
+  const from = await resolveFrom(tenantId);
 
   const to = dedupe(input.to);
   const cc = dedupe(input.cc).filter((address) => !to.includes(address));
@@ -122,9 +121,9 @@ export async function sendEmail(
 export async function replyToThread(
   threadId: string,
   input: ReplyEmailInput,
-  tenantId = DEFAULT_TENANT,
+  tenantId = 'default',
 ): Promise<SendMessageResult> {
-  const from = await resolveFrom();
+  const from = await resolveFrom(tenantId);
 
   // Reply targets the LATEST message in the thread (Gmail behavior).
   // Read from our DB — no API call needed, we already have the headers.
@@ -139,7 +138,7 @@ export async function replyToThread(
       referencesHeader: emails.referencesHeader,
     })
     .from(emails)
-    .where(eq(emails.threadId, threadId))
+    .where(and(eq(emails.tenantId, tenantId), eq(emails.threadId, threadId)))
     .orderBy(desc(emails.receivedAt))
     .limit(1);
 

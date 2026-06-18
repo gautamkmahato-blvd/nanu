@@ -138,6 +138,7 @@ export type MeetingPrepOutput = {
   meeting: Meeting;
   prep: PrepResult;
   fromCache: boolean;
+  relatedEmails: DeduplicatedEmail[]; // 
 };
 
 export type PipelineResult = {

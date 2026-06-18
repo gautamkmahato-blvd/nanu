@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { emails } from '@/db/schema';
@@ -19,6 +19,7 @@ export type ThreadMessage = {
 
 export async function getThreadMessages(
   threadId: string,
+  tenantId = 'default',
 ): Promise<ThreadMessage[]> {
   const rows = await db
     .select({
@@ -35,7 +36,7 @@ export async function getThreadMessages(
       isRead: emails.isRead,
     })
     .from(emails)
-    .where(eq(emails.threadId, threadId))
+    .where(and(eq(emails.tenantId, tenantId), eq(emails.threadId, threadId)))
     .orderBy(asc(emails.receivedAt));
 
   return rows.map((row) => ({

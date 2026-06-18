@@ -1,7 +1,6 @@
 // lib/v1/calendar/availability.ts
 // Checks free/busy availability and computes free slots.
 
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import type { AvailabilityResult, BusySlot, FreeSlot } from './types';
 
 /**
@@ -11,9 +10,10 @@ import type { AvailabilityResult, BusySlot, FreeSlot } from './types';
 export async function getAvailability(
   timeMin: string,
   timeMax: string,
+  tenantId = 'default',
 ): Promise<AvailabilityResult> {
   const { corsair } = await import('@/corsair');
-  const tenant = corsair.withTenant(DEFAULT_TENANT);
+  const tenant = corsair.withTenant(tenantId);
 
   const response = await tenant.googlecalendar.api.calendar.getAvailability({
     timeMin,

@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 type BoardEmail = {
   id: string;
@@ -42,6 +43,11 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const result = await db.execute(sql`
       SELECT
@@ -59,7 +65,8 @@ export async function GET() {
         ai_analysis->>'relationship_type' AS relationship_type,
         COALESCE((ai_analysis->>'urgency_score')::int, 0) AS urgency_score
       FROM emails
-      WHERE is_sent = false
+      WHERE tenant_id = ${tenantId}
+        AND is_sent = false
       ORDER BY received_at DESC
     `);
 

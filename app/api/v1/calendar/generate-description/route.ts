@@ -6,10 +6,16 @@ import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import openRouterClient from '@/config/openrouter/config';
+import { getTenantId } from '@/lib/auth/session';
 
 const MODEL = 'inception/mercury-2';
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { emailId } = await request.json();
 
@@ -20,7 +26,7 @@ export async function POST(request: Request) {
     // Fetch email data
     const result = await db.execute(sql`
       SELECT subject, from_email, from_name, to_emails, body_text, ai_analysis
-      FROM emails WHERE id = ${emailId} LIMIT 1
+      FROM emails WHERE tenant_id = ${tenantId} AND id = ${emailId} LIMIT 1
     `);
 
     const row = result.rows[0] as Record<string, unknown> | undefined;

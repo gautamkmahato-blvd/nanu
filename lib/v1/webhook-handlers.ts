@@ -11,9 +11,8 @@
 //   corsair.ts imports this file for its hooks, which would be a circular
 //   import. The one place we need the client uses a lazy dynamic import.
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import { db } from '@/db';
 import { emails } from '@/db/schema';
 import { getOwnEmail } from '@/lib/v1/get-own-email';
@@ -48,21 +47,22 @@ export function isGmailWebhookEvent(value: unknown): value is GmailWebhookEvent 
 }
 
 // ---------------------------------------------------------------------------
-// Own-email memo — avoids one DB query per webhook delivery
+// Own-email memo — per-tenant cache, avoids one DB query per webhook delivery
 // ---------------------------------------------------------------------------
 
-let ownEmailCache: { value: string; expiresAt: number } | null = null;
+const ownEmailCache = new Map<string, { value: string; expiresAt: number }>();
 const OWN_EMAIL_TTL_MS = 5 * 60 * 1000;
 
-async function getOwnEmailCached(): Promise<string> {
+async function getOwnEmailCached(tenantId: string): Promise<string> {
   const now = Date.now();
-  if (ownEmailCache && ownEmailCache.expiresAt > now) {
-    return ownEmailCache.value;
+  const cached = ownEmailCache.get(tenantId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
   }
-  const value = await getOwnEmail();
+  const value = await getOwnEmail(tenantId);
   // Only cache a hit; an empty value should be retried next delivery.
   if (value) {
-    ownEmailCache = { value, expiresAt: now + OWN_EMAIL_TTL_MS };
+    ownEmailCache.set(tenantId, { value, expiresAt: now + OWN_EMAIL_TTL_MS });
   }
   return value;
 }
@@ -71,11 +71,11 @@ async function getOwnEmailCached(): Promise<string> {
 // Fetch a full message when the webhook only carried a stub
 // ---------------------------------------------------------------------------
 
-async function fetchFullMessage(messageId: string): Promise<GmailMessage | null> {
+async function fetchFullMessage(messageId: string, tenantId: string): Promise<GmailMessage | null> {
   try {
     // Lazy import breaks the corsair.ts <-> webhook-handlers.ts cycle.
     const { corsair } = await import('@/corsair');
-    const tenant = corsair.withTenant(DEFAULT_TENANT);
+    const tenant = corsair.withTenant(tenantId);
     const message = await tenant.gmail.api.messages.get({
       id: messageId,
       format: 'full',
@@ -104,10 +104,10 @@ function hasFullPayload(
 // ---------------------------------------------------------------------------
 
 /** Fallback: use Gmail History API to find the latest message when we only have a historyId */
-async function fetchLatestFromHistory(historyId: string): Promise<GmailMessage | null> {
+async function fetchLatestFromHistory(historyId: string, tenantId: string): Promise<GmailMessage | null> {
   try {
     const { corsair } = await import('@/corsair');
-    const tenant = corsair.withTenant(DEFAULT_TENANT);
+    const tenant = corsair.withTenant(tenantId);
 
     // List the single most recent message
     const list = await tenant.gmail.api.messages.list({
@@ -129,7 +129,7 @@ async function fetchLatestFromHistory(historyId: string): Promise<GmailMessage |
   }
 }
 
-export async function handleMessageReceived(event: GmailWebhookEvent): Promise<void> {
+export async function handleMessageReceived(event: GmailWebhookEvent, tenantId: string): Promise<void> {
   // Log the actual shape — delete this line once we see what's in it
   console.log('[webhook:debug] event.message:', JSON.stringify(event.message)?.slice(0, 500));
   console.log('[webhook:debug] event keys:', Object.keys(event));
@@ -155,7 +155,7 @@ export async function handleMessageReceived(event: GmailWebhookEvent): Promise<v
       const historyId = event.historyId;
       if (historyId) {
         console.log(`[webhook] no message id, falling back to history ${historyId}`);
-        message = await fetchLatestFromHistory(historyId) ?? undefined;
+        message = await fetchLatestFromHistory(historyId, tenantId) ?? undefined;
       }
 
       if (!hasFullPayload(message)) {
@@ -164,7 +164,7 @@ export async function handleMessageReceived(event: GmailWebhookEvent): Promise<v
         return;
       }
     } else {
-      message = (await fetchFullMessage(id)) ?? undefined;
+      message = (await fetchFullMessage(id, tenantId)) ?? undefined;
       if (!hasFullPayload(message)) {
         console.warn(`[webhook] could not hydrate message ${id} — skipping`);
         return;
@@ -174,19 +174,19 @@ export async function handleMessageReceived(event: GmailWebhookEvent): Promise<v
 
   console.log('[------ DB Insert Starts here ----] ');
 
-  const ownEmail = await getOwnEmailCached();
-  const result = await ingestMessage(message, ownEmail);
+  const ownEmail = await getOwnEmailCached(tenantId);
+  const result = await ingestMessage(message, ownEmail, tenantId);
   if (result.ok) {
     console.log(`[webhook] ingested message ${result.id}`);
 
     // Nudge AI analysis — fire-and-forget, classify chains to embed automatically
-    classifySyncedEmails().catch((err) =>
+    classifySyncedEmails(tenantId).catch((err) =>
       console.error('[webhook] ai nudge failed:', err),
     );
 
     // After the email is saved/processed, add:
     // Priority contact notification — fire-and-forget
-    getEmailById(result.id as string).then((email) => {
+    getEmailById(result.id as string, tenantId).then((email) => {
       console.log(`[priority-debug] email found: ${!!email}, fromEmail: ${email?.fromEmail}`);
       if (email) {
         checkAndNotifyPriorityEmail({
@@ -194,14 +194,14 @@ export async function handleMessageReceived(event: GmailWebhookEvent): Promise<v
           fromName: email.fromName,
           subject: email.subject ?? null,
           snippet: email.snippet ?? null,
-        }).catch((err) => console.warn('[webhook] priority notify failed:', err));
+        }, tenantId).catch((err) => console.warn('[webhook] priority notify failed:', err));
       }
     });
 
   }
 }
 
-export async function handleMessageDeleted(event: GmailWebhookEvent): Promise<void> {
+export async function handleMessageDeleted(event: GmailWebhookEvent, tenantId: string): Promise<void> {
   const id = event.message?.id;
   if (!id) {
     console.warn('[webhook] messageDeleted without a message id — skipping');
@@ -209,11 +209,11 @@ export async function handleMessageDeleted(event: GmailWebhookEvent): Promise<vo
   }
 
   // Deleting a row we never had is a no-op — safe for out-of-order delivery.
-  await db.delete(emails).where(eq(emails.id, id));
+  await db.delete(emails).where(and(eq(emails.tenantId, tenantId), eq(emails.id, id)));
   console.log(`[webhook] deleted message ${id}`);
 }
 
-export async function handleMessageLabelChanged(event: GmailWebhookEvent): Promise<void> {
+export async function handleMessageLabelChanged(event: GmailWebhookEvent, tenantId: string): Promise<void> {
   const message = event.message;
   const id = message?.id;
   if (!id) {
@@ -225,8 +225,8 @@ export async function handleMessageLabelChanged(event: GmailWebhookEvent): Promi
   // refreshes labels AND content (covers the out-of-order "update before
   // create" case, since upsert inserts if the row is missing).
   if (hasFullPayload(message)) {
-    const ownEmail = await getOwnEmailCached();
-    await ingestMessage(message, ownEmail);
+    const ownEmail = await getOwnEmailCached(tenantId);
+    await ingestMessage(message, ownEmail, tenantId);
     return;
   }
 
@@ -239,7 +239,7 @@ export async function handleMessageLabelChanged(event: GmailWebhookEvent): Promi
     const [existing] = await db
       .select({ labelIds: emails.labelIds })
       .from(emails)
-      .where(eq(emails.id, id))
+      .where(and(eq(emails.tenantId, tenantId), eq(emails.id, id)))
       .limit(1);
 
     if (existing) {
@@ -253,17 +253,17 @@ export async function handleMessageLabelChanged(event: GmailWebhookEvent): Promi
       await db
         .update(emails)
         .set({ labelIds, ...flags, updatedAt: new Date() })
-        .where(eq(emails.id, id));
+        .where(and(eq(emails.tenantId, tenantId), eq(emails.id, id)));
       console.log(`[webhook] applied label delta to ${id}`);
       return;
     }
   }
 
   // Fallback 2: we don't have the row (or no deltas were sent) — hydrate.
-  const full = await fetchFullMessage(id);
+  const full = await fetchFullMessage(id, tenantId);
   if (hasFullPayload(full ?? undefined)) {
-    const ownEmail = await getOwnEmailCached();
-    await ingestMessage(full!, ownEmail);
+    const ownEmail = await getOwnEmailCached(tenantId);
+    await ingestMessage(full!, ownEmail, tenantId);
   } else {
     console.warn(`[webhook] label change for unknown message ${id}, hydrate failed — skipping`);
   }
@@ -284,9 +284,10 @@ export type CorsairWebhookResponse<TData = unknown> = {
 
 export async function handleGmailWebhookEvent(
   response: any,
+  tenantId = 'default',
 ): Promise<void> {
   const event = response.data;
-  console.log('[------ event type ----] ', event?.type);
+  console.log('[------ event type ----] ', event?.type, '| tenant:', tenantId);
   if (!isGmailWebhookEvent(event)) {
     console.warn('[webhook] unrecognized gmail event shape — ignoring');
     return;
@@ -294,10 +295,10 @@ export async function handleGmailWebhookEvent(
 
   switch (event.type) {
     case 'messageReceived':
-      return handleMessageReceived(event);
+      return handleMessageReceived(event, tenantId);
     case 'messageDeleted':
-      return handleMessageDeleted(event);
+      return handleMessageDeleted(event, tenantId);
     case 'messageLabelChanged':
-      return handleMessageLabelChanged(event);
+      return handleMessageLabelChanged(event, tenantId);
   }
 }

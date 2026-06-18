@@ -3,13 +3,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteContact } from '@/lib/v1/priority-contacts/db';
+import { getTenantId } from '@/lib/auth/session';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function DELETE(req: NextRequest, { params }: Params) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
-    const deleted = await deleteContact(id);
+    const deleted = await deleteContact(id, tenantId);
 
     if (!deleted) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });

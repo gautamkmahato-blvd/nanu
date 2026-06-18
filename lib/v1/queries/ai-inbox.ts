@@ -1,11 +1,5 @@
 // lib/v1/queries/ai-inbox.ts
 // AI-enriched inbox query with optional time period filter.
-//
-// CHANGES FROM ORIGINAL:
-// - Added `timePeriod` parameter for time-based filtering
-// - Added `status` field to the returned type
-// - Query now selects `status` column
-// - Added `getTimeFilterDate()` helper
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
@@ -74,7 +68,8 @@ function getTimeFilterDate(period: TimePeriod): Date | null {
 export async function getAIInboxThreads(
   limit = 50,
   offset = 0,
-  timePeriod: TimePeriod = 'all'
+  timePeriod: TimePeriod = 'all',
+  tenantId = 'default',
 ): Promise<AIInboxThread[]> {
   const cutoffDate = getTimeFilterDate(timePeriod);
 
@@ -96,7 +91,8 @@ export async function getAIInboxThreads(
         status,
         ai_analysis
       FROM emails
-      WHERE is_archived = false
+      WHERE tenant_id = ${tenantId}
+        AND is_archived = false
         ${timeClause}
       ORDER BY thread_id, received_at DESC
     ),
@@ -107,7 +103,8 @@ export async function getAIInboxThreads(
         bool_or(NOT is_read) AS has_unread,
         bool_or(has_attachments) AS thread_has_attachments
       FROM emails
-      WHERE is_archived = false
+      WHERE tenant_id = ${tenantId}
+        AND is_archived = false
       GROUP BY thread_id
     )
     SELECT

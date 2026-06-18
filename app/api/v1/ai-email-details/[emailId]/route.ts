@@ -3,11 +3,17 @@
 import { NextResponse } from 'next/server';
 import { getEmailById, getThreadEmails } from '@/lib/v1/queries/ai-email-detail';
 import { extractEmailIntelligence } from '@/lib/v1/ai-email-details';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ emailId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { emailId } = await params;
 
   if (!emailId || !/^[a-zA-Z0-9_-]+$/.test(emailId)) {
@@ -15,12 +21,12 @@ export async function GET(
   }
 
   try {
-    const email = await getEmailById(emailId);
+    const email = await getEmailById(emailId, tenantId);
     if (!email) {
       return NextResponse.json({ error: 'Email not found' }, { status: 404 });
     }
 
-    const threadEmails = await getThreadEmails(email.threadId);
+    const threadEmails = await getThreadEmails(email.threadId, tenantId);
     const intelligence = extractEmailIntelligence(email.aiAnalysis);
 
     return NextResponse.json({

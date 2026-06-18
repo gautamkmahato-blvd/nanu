@@ -6,10 +6,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getNotificationSettings, updateNotificationSettings } from '@/lib/v1/priority-contacts/db';
 import { sendTelegramMessage } from '@/lib/v1/priority-contacts/telegram';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const settings = await getNotificationSettings();
+    const settings = await getNotificationSettings(tenantId);
     // Mask the bot token for security (show last 6 chars only)
     return NextResponse.json({
       ...settings,
@@ -27,6 +33,11 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -39,7 +50,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     }
 
-    const settings = await updateNotificationSettings(updates);
+    const settings = await updateNotificationSettings(updates, tenantId);
     return NextResponse.json({
       ...settings,
       telegramBotToken: settings.telegramBotToken
@@ -57,8 +68,13 @@ export async function PATCH(req: NextRequest) {
 
 // POST → test telegram connection by sending a test message
 export async function POST() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const settings = await getNotificationSettings();
+    const settings = await getNotificationSettings(tenantId);
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
       return NextResponse.json({ error: 'Telegram bot token and chat ID required' }, { status: 400 });

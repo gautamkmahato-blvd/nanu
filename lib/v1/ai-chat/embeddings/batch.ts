@@ -22,15 +22,21 @@ type UnembeddedEmail = {
   ai_analysis: Record<string, unknown> | null;
 };
 
+function tenantClause(tenantId?: string) {
+  return tenantId ? sql`AND tenant_id = ${tenantId}` : sql``;
+}
+
 let running = false;
 
-export async function embedPendingEmails(): Promise<EmbedStats> {
+export async function embedPendingEmails(tenantId?: string): Promise<EmbedStats> {
   const stats: EmbedStats = { embedded: 0, failed: 0, remaining: 0 };
 
   if (running) {
-    stats.remaining = await countPending();
+    stats.remaining = await countPending(tenantId);
     return stats;
   }
+
+  const tClause = tenantClause(tenantId);
 
   running = true;
   try {
@@ -40,6 +46,7 @@ export async function embedPendingEmails(): Promise<EmbedStats> {
         SELECT id, subject, body_text, ai_analysis
         FROM emails
         WHERE embedding IS NULL
+          ${tClause}
         ORDER BY received_at DESC
         LIMIT ${BATCH_SIZE}
       `);
@@ -82,7 +89,7 @@ export async function embedPendingEmails(): Promise<EmbedStats> {
       }
     }
 
-    stats.remaining = await countPending();
+    stats.remaining = await countPending(tenantId);
 
     if (stats.embedded > 0) {
       console.log(`[embed] done: ${stats.embedded} embedded, ${stats.failed} failed, ${stats.remaining} remaining`);
@@ -94,9 +101,13 @@ export async function embedPendingEmails(): Promise<EmbedStats> {
   }
 }
 
-async function countPending(): Promise<number> {
+async function countPending(tenantId?: string): Promise<number> {
+  const tClause = tenantClause(tenantId);
+
   const result = await db.execute(sql`
-    SELECT COUNT(*)::int AS n FROM emails WHERE embedding IS NULL
+    SELECT COUNT(*)::int AS n FROM emails
+    WHERE embedding IS NULL
+      ${tClause}
   `);
   return Number((result.rows[0] as { n?: number })?.n ?? 0);
 }

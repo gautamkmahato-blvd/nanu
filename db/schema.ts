@@ -1,10 +1,15 @@
-// db/schema.ts  (UPDATED — adds emails.ai_analysis jsonb; run `npm run db:push`)
+// db/schema.ts
+// UPDATED — adds tenant_id to emails + contacts for multi-tenant isolation.
+// Run `node scripts/run-multi-tenant.mjs` to apply the DB migration,
+// then restart the dev server.
+
 import {
   boolean,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -115,6 +120,7 @@ export const emails = pgTable(
   'emails',
   {
     id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'), // ← NEW
     threadId: text('thread_id').notNull(),
 
     labelIds: jsonb('label_ids').$type<string[]>().default([]),
@@ -150,7 +156,7 @@ export const emails = pgTable(
     priorityScore: real('priority_score'),
     aiSummary: text('ai_summary'),
     aiAnalysis: jsonb('ai_analysis').$type<Record<string, unknown>>(),
-    aiRawResponse: text('ai_raw_response'), 
+    aiRawResponse: text('ai_raw_response'),
     aiProcessedAt: timestamp('ai_processed_at', { withTimezone: true }),
     actionTaken: boolean("action_taken").notNull().default(false),
     actionTakenAt: timestamp('action_taken_at', { withTimezone: true }),
@@ -163,13 +169,17 @@ export const emails = pgTable(
     index('emails_received_idx').on(table.receivedAt.desc()),
     index('emails_priority_idx').on(table.priorityScore.desc()),
     index('emails_ai_pending_idx').on(table.aiProcessedAt),
+    index('emails_tenant_idx').on(table.tenantId),                         // ← NEW
+    index('emails_tenant_received_idx').on(table.tenantId, table.receivedAt.desc()), // ← NEW
+    index('emails_tenant_thread_idx').on(table.tenantId, table.threadId),  // ← NEW
   ],
 );
 
 export const contacts = pgTable(
   'contacts',
   {
-    email: varchar('email', { length: 320 }).primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'), // ← NEW
+    email: varchar('email', { length: 320 }).notNull(),       // ← was .primaryKey()
     name: text('name'),
     interactionCount: integer('interaction_count').default(0).notNull(),
     relationshipScore: real('relationship_score').default(0).notNull(),
@@ -184,7 +194,8 @@ export const contacts = pgTable(
       .notNull(),
   },
   (table) => [
-    index('contacts_score_idx').on(table.relationshipScore.desc()),
+    primaryKey({ columns: [table.tenantId, table.email] }),                      // ← NEW composite PK
+    index('contacts_tenant_score_idx').on(table.tenantId, table.relationshipScore.desc()), // ← NEW
   ],
 );
 

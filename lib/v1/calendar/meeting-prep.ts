@@ -47,11 +47,11 @@ type EventInput = {
 // Main: check cache → generate if missing → save to cache
 // ---------------------------------------------------------------------------
 
-export async function enrichEventsWithPrep(events: EventInput[]): Promise<PreparedEvent[]> {
+export async function enrichEventsWithPrep(events: EventInput[], tenantId = 'default'): Promise<PreparedEvent[]> {
   if (events.length === 0) return [];
 
   const eventIds = events.map((e) => e.id);
-  const cached = await getCachedPreps(eventIds);
+  const cached = await getCachedPreps(eventIds, tenantId);
 
   const results: PreparedEvent[] = [];
   const toGenerate: EventInput[] = [];
@@ -62,9 +62,9 @@ export async function enrichEventsWithPrep(events: EventInput[]): Promise<Prepar
   }
 
   if (toGenerate.length > 0) {
-    const generated = await generatePreps(toGenerate);
+    const generated = await generatePreps(toGenerate, tenantId);
     results.push(...generated);
-    saveToCacheBatch(generated).catch((err) => console.warn('[prep] cache save failed:', err instanceof Error ? err.message : err));
+    saveToCacheBatch(generated, tenantId).catch((err) => console.warn('[prep] cache save failed:', err instanceof Error ? err.message : err));
   }
 
   // Preserve original order
@@ -77,14 +77,15 @@ export async function enrichEventsWithPrep(events: EventInput[]): Promise<Prepar
 // Cache read/write
 // ---------------------------------------------------------------------------
 
-async function getCachedPreps(eventIds: string[]): Promise<Map<string, PreparedEvent>> {
+async function getCachedPreps(eventIds: string[], tenantId: string): Promise<Map<string, PreparedEvent>> {
   const map = new Map<string, PreparedEvent>();
   if (eventIds.length === 0) return map;
   try {
     const idList = sql.join(eventIds.map((id) => sql`${id}`), sql`, `);
     const result = await db.execute(sql`
       SELECT event_id, prep_data FROM meeting_prep_cache
-      WHERE event_id IN (${idList}) AND created_at > NOW() - INTERVAL '6 hours'
+      WHERE tenant_id = ${tenantId}
+        AND event_id IN (${idList}) AND created_at > NOW() - INTERVAL '6 hours'
     `);
     for (const row of result.rows) {
       const r = row as Record<string, unknown>;
@@ -95,13 +96,13 @@ async function getCachedPreps(eventIds: string[]): Promise<Map<string, PreparedE
   return map;
 }
 
-async function saveToCacheBatch(events: PreparedEvent[]): Promise<void> {
+async function saveToCacheBatch(events: PreparedEvent[], tenantId: string): Promise<void> {
   for (const event of events) {
     try {
       await db.execute(sql`
-        INSERT INTO meeting_prep_cache (event_id, event_summary, event_start, prep_data)
-        VALUES (${event.id}, ${event.summary}, ${event.startTime}::timestamptz, ${JSON.stringify(event)}::jsonb)
-        ON CONFLICT (event_id) DO UPDATE SET prep_data = EXCLUDED.prep_data, created_at = NOW()
+        INSERT INTO meeting_prep_cache (tenant_id, event_id, event_summary, event_start, prep_data)
+        VALUES (${tenantId}, ${event.id}, ${event.summary}, ${event.startTime}::timestamptz, ${JSON.stringify(event)}::jsonb)
+        ON CONFLICT (tenant_id, event_id) DO UPDATE SET prep_data = EXCLUDED.prep_data, created_at = NOW()
       `);
     } catch (err) { console.warn(`[prep] cache write failed for ${event.id}:`, err instanceof Error ? err.message : err); }
   }
@@ -111,7 +112,7 @@ async function saveToCacheBatch(events: PreparedEvent[]): Promise<void> {
 // Generate pipeline: stats + hybrid search + LLM
 // ---------------------------------------------------------------------------
 
-async function generatePreps(events: EventInput[]): Promise<PreparedEvent[]> {
+async function generatePreps(events: EventInput[], tenantId: string): Promise<PreparedEvent[]> {
   const allEmails = new Set<string>();
   for (const ev of events) { for (const a of ev.attendees) { if (!a.self) allEmails.add(a.email.toLowerCase()); } }
 
@@ -123,8 +124,8 @@ async function generatePreps(events: EventInput[]): Promise<PreparedEvent[]> {
 
   // Stats (parallel)
   const [receivedMap, sentMap] = await Promise.all([
-    fetchReceivedStats(emailList),
-    fetchSentStats(emailList),
+    fetchReceivedStats(emailList, tenantId),
+    fetchSentStats(emailList, tenantId),
   ]);
 
   // Enrich each event (parallel — hybrid search per event)
@@ -136,7 +137,7 @@ async function generatePreps(events: EventInput[]): Promise<PreparedEvent[]> {
     const meetingContext = [event.summary, event.description ?? ''].filter(Boolean).join(' — ');
     let relevantMap = new Map<string, PrepSearchResult[]>();
     try {
-      relevantMap = await searchRelevantEmails(meetingContext, attendeeEmails);
+      relevantMap = await searchRelevantEmails(meetingContext, attendeeEmails, tenantId);
     } catch (err) {
       console.warn(`[prep] search failed for "${event.summary}":`, err instanceof Error ? err.message : err);
     }
@@ -149,7 +150,7 @@ async function generatePreps(events: EventInput[]): Promise<PreparedEvent[]> {
         emailsReceived: recv?.cnt ?? 0, emailsSent: sentMap.get(key) ?? 0,
         lastInteraction: recv?.last_at ?? null, relationshipType: recv?.rel_type ?? null,
         sentiment: recv?.sentiment ?? null, recentTopics: (recv?.topics ?? []).slice(0, 5),
-        pendingItems: (recv?.tasks ?? []).slice(0, 5),  // now just task strings, not JSON blobs
+        pendingItems: (recv?.tasks ?? []).slice(0, 5),
         relevantEmails: relevantMap.get(key) ?? [],
       };
     });
@@ -265,12 +266,12 @@ function parseAiPrepJson(raw: string): AiPrep {
 }
 
 // ---------------------------------------------------------------------------
-// Stats: received emails (FIXED: extracts task text, not full JSON object)
+// Stats: received emails
 // ---------------------------------------------------------------------------
 
 type ReceivedStats = { cnt: number; last_at: string | null; rel_type: string | null; sentiment: string | null; topics: string[]; tasks: string[] };
 
-async function fetchReceivedStats(emails: string[]): Promise<Map<string, ReceivedStats>> {
+async function fetchReceivedStats(emails: string[], tenantId: string): Promise<Map<string, ReceivedStats>> {
   const map = new Map<string, ReceivedStats>();
   if (emails.length === 0) return map;
   const emailList = sql.join(emails.map((e) => sql`${e}`), sql`, `);
@@ -295,7 +296,8 @@ async function fetchReceivedStats(emails: string[]): Promise<Map<string, Receive
       ) AS task_text
       FROM jsonb_array_elements(ai_analysis->'action_items') AS item
     ) a ON true
-    WHERE LOWER(from_email) IN (${emailList}) AND ai_analysis IS NOT NULL
+    WHERE tenant_id = ${tenantId}
+      AND LOWER(from_email) IN (${emailList}) AND ai_analysis IS NOT NULL
     GROUP BY LOWER(from_email)
   `);
 
@@ -311,10 +313,10 @@ async function fetchReceivedStats(emails: string[]): Promise<Map<string, Receive
 }
 
 // ---------------------------------------------------------------------------
-// Stats: sent emails (FIXED: jsonb_array_elements_text + IN clause)
+// Stats: sent emails
 // ---------------------------------------------------------------------------
 
-async function fetchSentStats(emails: string[]): Promise<Map<string, number>> {
+async function fetchSentStats(emails: string[], tenantId: string): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (emails.length === 0) return map;
   const emailList = sql.join(emails.map((e) => sql`${e}`), sql`, `);
@@ -323,7 +325,8 @@ async function fetchSentStats(emails: string[]): Promise<Map<string, number>> {
     SELECT LOWER(addr) AS email, COUNT(DISTINCT emails.id)::int AS cnt
     FROM emails,
       LATERAL jsonb_array_elements_text(to_emails) AS addr
-    WHERE LOWER(addr) IN (${emailList}) AND is_sent = true
+    WHERE tenant_id = ${tenantId}
+      AND LOWER(addr) IN (${emailList}) AND is_sent = true
     GROUP BY LOWER(addr)
   `);
 

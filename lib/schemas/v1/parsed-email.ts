@@ -9,6 +9,7 @@ const attachmentSchema = z.object({
 
 export const emailRowSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().default('default'), // ← NEW: defaults to 'default' until Phase 4 wires it
   threadId: z.string().min(1),
   labelIds: z.array(z.string()).default([]),
   isSent: z.boolean().default(false),

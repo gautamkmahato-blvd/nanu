@@ -33,7 +33,8 @@ When they say "schedule meeting with them" — use the sender's email as attende
 }
 
 export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
-  const { message, conversationHistory, emailContext, pendingAction, confirmed } = request;
+  const { message, conversationHistory, emailContext, pendingAction, confirmed, tenantId } = request;
+  const tid = tenantId ?? 'default';
   const toolsUsed: string[] = [];
   const collectedEmails: SearchResultEmail[] = [];
 
@@ -53,7 +54,7 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
     // --- Confirmation resume ---
     if (pendingAction && confirmed === true) {
       toolsUsed.push(pendingAction.tool);
-      const result = await executeToolWithTimeout(pendingAction.tool, pendingAction.args, emailContext ? { threadId: emailContext.threadId } : undefined);
+      const result = await executeToolWithTimeout(pendingAction.tool, pendingAction.args, emailContext ? { threadId: emailContext.threadId } : undefined, tid);
 
       messages.push({ role: 'user', content: message });
       messages.push({
@@ -123,7 +124,7 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
           };
         }
 
-        const result = await executeToolWithTimeout(fnName, args, emailContext ? { threadId: emailContext.threadId } : undefined);
+        const result = await executeToolWithTimeout(fnName, args, emailContext ? { threadId: emailContext.threadId } : undefined, tid);
 
         // Capture emails from search_inbox for UI rendering
         if (fnName === 'search_inbox' && result.success) {

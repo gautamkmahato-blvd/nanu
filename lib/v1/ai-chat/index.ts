@@ -1,11 +1,5 @@
 // lib/v1/ai-chat/index.ts
 // Main orchestrator: query → analyze → 3 parallel searches → merge → answer.
-//
-// CHANGES:
-// 1. Added `options` parameter: { skipAnswer?, conversationHistory? }
-// 2. When skipAnswer=true, skips Mercury-2 answer generation (used by agent)
-// 3. Passes conversationHistory to analyzeQuery for follow-up context
-// 4. All search logic, pre-filter, merge UNCHANGED
 
 import { analyzeQuery } from './chat/analyze';
 import { generateAnswer } from './chat/answer';
@@ -31,6 +25,7 @@ export type ChatResponse = {
 export type ChatQueryOptions = {
   skipAnswer?: boolean;
   conversationHistory?: { role: string; content: string }[];
+  tenantId?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -77,6 +72,7 @@ export async function handleChatQuery(
   const requestId = Math.random().toString(36).slice(2, 8);
   const skipAnswer = options?.skipAnswer ?? false;
   const conversationHistory = options?.conversationHistory;
+  const tenantId = options?.tenantId ?? 'default';
 
   console.log(`[ai-chat:${requestId}] ← query: "${userMessage.slice(0, 80)}"${skipAnswer ? ' [skipAnswer]' : ''}`);
 
@@ -122,10 +118,10 @@ export async function handleChatQuery(
   const searchStart = Date.now();
 
   const [structuredResults, fulltextResults, semanticResults] = await Promise.allSettled([
-    analysis.filters.length > 0 ? structuredSearch(analysis.filters, 10) : Promise.resolve([]),
-    analysis.search_terms ? fulltextSearch(analysis.search_terms, 10) : Promise.resolve([]),
+    analysis.filters.length > 0 ? structuredSearch(analysis.filters, 10, tenantId) : Promise.resolve([]),
+    analysis.search_terms ? fulltextSearch(analysis.search_terms, 10, tenantId) : Promise.resolve([]),
     analysis.embedding_text
-      ? semanticSearch(analysis.embedding_text, 10).catch((err) => {
+      ? semanticSearch(analysis.embedding_text, 10, tenantId).catch((err) => {
           console.warn(`[ai-chat:${requestId}] semantic search failed: ${err instanceof Error ? err.message : err}`);
           return [];
         })

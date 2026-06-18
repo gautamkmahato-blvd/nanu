@@ -22,7 +22,7 @@ export type EmailDetailRow = {
   status: string;
 };
 
-export async function getEmailById(emailId: string): Promise<EmailDetailRow | null> {
+export async function getEmailById(emailId: string, tenantId = 'default'): Promise<EmailDetailRow | null> {
   const result = await db.execute(sql`
     SELECT
       id, thread_id, subject, from_email, from_name,
@@ -30,7 +30,8 @@ export async function getEmailById(emailId: string): Promise<EmailDetailRow | nu
       received_at, is_read, is_sent, has_attachments, ai_analysis,
       COALESCE(status, 'new') AS status
     FROM emails
-    WHERE id = ${emailId}
+    WHERE tenant_id = ${tenantId}
+      AND id = ${emailId}
     LIMIT 1
   `);
 
@@ -57,7 +58,7 @@ export async function getEmailById(emailId: string): Promise<EmailDetailRow | nu
   };
 }
 
-export async function getThreadEmails(threadId: string): Promise<EmailDetailRow[]> {
+export async function getThreadEmails(threadId: string, tenantId = 'default'): Promise<EmailDetailRow[]> {
   const result = await db.execute(sql`
     SELECT
       id, thread_id, subject, from_email, from_name,
@@ -65,7 +66,8 @@ export async function getThreadEmails(threadId: string): Promise<EmailDetailRow[
       received_at, is_read, is_sent, has_attachments, ai_analysis,
       COALESCE(status, 'new') AS status
     FROM emails
-    WHERE thread_id = ${threadId}
+    WHERE tenant_id = ${tenantId}
+      AND thread_id = ${threadId}
     ORDER BY received_at ASC
   `);
 

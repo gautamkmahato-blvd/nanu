@@ -3,10 +3,16 @@
 import { NextResponse } from 'next/server';
 import { getTaskEmails } from '@/lib/v1/queries/tasks-deadlines';
 import { getTasksAndDeadlines } from '@/lib/v1/tasks-deadlines';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const emails = await getTaskEmails();
+    const emails = await getTaskEmails(tenantId);
     const grouped = getTasksAndDeadlines(emails);
 
     // Include counts for the UI header

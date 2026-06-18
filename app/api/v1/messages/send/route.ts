@@ -3,11 +3,17 @@ import { NextResponse } from 'next/server';
 
 import { SendEmailError, sendEmail } from '@/app/service/v1/sendEmail';
 import { sendEmailSchema } from '@/lib/schemas/v1/send-email';
+import { getTenantId } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -28,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await sendEmail(parsed.data);
+    const result = await sendEmail(parsed.data, tenantId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof SendEmailError) {

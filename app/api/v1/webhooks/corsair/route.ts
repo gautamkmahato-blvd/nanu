@@ -4,7 +4,6 @@
 import { NextResponse } from 'next/server';
 import { processWebhook } from 'corsair';
 
-import { DEFAULT_TENANT } from '@/constants/gmail';
 import { corsair } from '@/corsair';
 
 type WebhookBody = Record<string, unknown>;
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
       Object.fromEntries(request.headers),
       body,
       {
-        tenantId: url.searchParams.get('tenantId') ?? DEFAULT_TENANT,
+        tenantId: url.searchParams.get('tenantId') ?? 'default',
       },
     );
 

@@ -5,8 +5,14 @@
 import { NextResponse } from 'next/server';
 import { askAboutEmail } from '@/lib/v1/email-assistant';
 import type { ChatHistoryMessage } from '@/lib/v1/email-assistant';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { emailId, message, history } = body;
@@ -33,8 +39,8 @@ export async function POST(request: Request) {
         )
       : [];
 
-    const result = await askAboutEmail(emailId, message.trim(), validHistory);
-
+      const result = await askAboutEmail(emailId, message.trim(), validHistory, tenantId);
+      
     return NextResponse.json(result);
   } catch (error) {
     console.error('[email-assistant] route failed:', error);

@@ -13,6 +13,7 @@ import type { SearchResultEmail } from '../types';
 export async function semanticSearch(
   queryText: string,
   limit = 10,
+  tenantId = 'default',
 ): Promise<SearchResultEmail[]> {
   if (!queryText.trim()) return [];
 
@@ -33,7 +34,8 @@ export async function semanticSearch(
       ai_analysis->>'summary' AS summary,
       1 - (embedding <=> ${vectorStr}::vector) AS similarity
     FROM emails
-    WHERE embedding IS NOT NULL
+    WHERE tenant_id = ${tenantId}
+      AND embedding IS NOT NULL
       AND is_sent = false
       AND 1 - (embedding <=> ${vectorStr}::vector) >= 0.5
     ORDER BY embedding <=> ${vectorStr}::vector

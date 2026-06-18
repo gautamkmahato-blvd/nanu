@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server';
 import { executeEmailAction, type ActionType } from '@/lib/v1/email-actions/actions';
+import { getTenantId } from '@/lib/auth/session';
 
 const VALID_ACTIONS: ActionType[] = ['mark_done', 'unmark_done', 'mark_important', 'unmark_important'];
 
@@ -10,6 +11,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ emailId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { emailId } = await params;
 
   if (!emailId || !/^[a-zA-Z0-9_-]+$/.test(emailId)) {
@@ -27,7 +33,7 @@ export async function PATCH(
       );
     }
 
-    const result = await executeEmailAction(emailId, action as ActionType);
+    const result = await executeEmailAction(emailId, action as ActionType, tenantId);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });

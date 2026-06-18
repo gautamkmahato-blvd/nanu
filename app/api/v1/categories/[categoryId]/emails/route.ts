@@ -2,18 +2,27 @@
 // GET: List emails in a category
 // POST: Assign an email to a category
 // DELETE: Remove an email from a category
+// FIXED: tenant_id on email_categories table for defense-in-depth.
+// All three handlers now filter/write tenant_id directly on the junction table,
+// in addition to the existing JOIN-based enforcement on categories + emails.
 
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ categoryId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const { categoryId } = await params;
 
   try {
+    // Triple-layer tenant enforcement: ec.tenant_id + c.tenant_id + e.tenant_id
     const result = await db.execute(sql`
       SELECT
         e.id,
@@ -31,8 +40,12 @@ export async function GET(
         e.ai_analysis->>'relationship_type' AS relationship_type,
         ec.assigned_at
       FROM email_categories ec
+      JOIN categories c ON c.id = ec.category_id
       JOIN emails e ON e.id = ec.email_id
-      WHERE ec.category_id = ${categoryId}
+      WHERE ec.tenant_id = ${tenantId}
+        AND ec.category_id = ${categoryId}
+        AND c.tenant_id = ${tenantId}
+        AND e.tenant_id = ${tenantId}
       ORDER BY ec.assigned_at DESC
     `);
 
@@ -64,6 +77,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ categoryId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const { categoryId } = await params;
 
   try {
@@ -74,10 +91,10 @@ export async function POST(
       return NextResponse.json({ error: 'emailId is required' }, { status: 400 });
     }
 
-    // Verify both exist
+    // Verify both exist AND belong to this tenant
     const [catCheck, emailCheck] = await Promise.all([
-      db.execute(sql`SELECT id FROM categories WHERE id = ${categoryId} LIMIT 1`),
-      db.execute(sql`SELECT id FROM emails WHERE id = ${emailId} LIMIT 1`),
+      db.execute(sql`SELECT id FROM categories WHERE id = ${categoryId} AND tenant_id = ${tenantId} LIMIT 1`),
+      db.execute(sql`SELECT id FROM emails WHERE id = ${emailId} AND tenant_id = ${tenantId} LIMIT 1`),
     ]);
 
     if (catCheck.rows.length === 0) {
@@ -87,10 +104,10 @@ export async function POST(
       return NextResponse.json({ error: 'Email not found' }, { status: 404 });
     }
 
-    // Assign (ON CONFLICT = already assigned, no-op)
+    // Assign with tenant_id baked into the row
     await db.execute(sql`
-      INSERT INTO email_categories (email_id, category_id)
-      VALUES (${emailId}, ${categoryId})
+      INSERT INTO email_categories (tenant_id, email_id, category_id)
+      VALUES (${tenantId}, ${emailId}, ${categoryId})
       ON CONFLICT (email_id, category_id) DO NOTHING
     `);
 
@@ -105,6 +122,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ categoryId: string }> },
 ) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const { categoryId } = await params;
 
   try {
@@ -115,9 +136,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'emailId query param is required' }, { status: 400 });
     }
 
+    // Direct tenant_id filter on the junction table — no JOIN needed
     await db.execute(sql`
       DELETE FROM email_categories
-      WHERE email_id = ${emailId} AND category_id = ${categoryId}
+      WHERE tenant_id = ${tenantId}
+        AND email_id = ${emailId}
+        AND category_id = ${categoryId}
     `);
 
     return NextResponse.json({ success: true, emailId, categoryId });

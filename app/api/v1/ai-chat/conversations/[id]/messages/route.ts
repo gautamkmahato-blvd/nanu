@@ -11,16 +11,22 @@ import {
   updateConversationTitle,
   generateTitle,
 } from '@/lib/v1/ai-chat/conversations';
+import { getTenantId } from '@/lib/auth/session';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const body = await req.json();
 
     // Validate conversation exists
-    const conv = await getConversation(id);
+    const conv = await getConversation(id, tenantId);
     if (!conv) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
@@ -45,6 +51,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         msg.content ?? '',
         msg.emails ?? null,
         msg.toolsUsed ?? null,
+        tenantId,
       );
 
       savedIds.push(msgId);
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const firstUserMsg = messages.find((m: any) => m.role === 'user');
       if (firstUserMsg?.content) {
         const title = generateTitle(firstUserMsg.content);
-        await updateConversationTitle(id, title);
+        await updateConversationTitle(id, title, tenantId);
       }
     }
 

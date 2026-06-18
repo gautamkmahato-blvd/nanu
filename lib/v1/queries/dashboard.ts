@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { RawDashboardEmail } from '../dashboard';
 
-export async function getDashboardEmails(): Promise<RawDashboardEmail[]> {
+export async function getDashboardEmails(tenantId = 'default'): Promise<RawDashboardEmail[]> {
   const result = await db.execute(sql`
     SELECT DISTINCT ON (thread_id)
       id,
@@ -18,7 +18,8 @@ export async function getDashboardEmails(): Promise<RawDashboardEmail[]> {
       action_taken,
       ai_analysis
     FROM emails
-    WHERE is_archived = false
+    WHERE tenant_id = ${tenantId}
+      AND is_archived = false
       AND is_sent = false
     ORDER BY thread_id, received_at DESC
   `);

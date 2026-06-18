@@ -8,9 +8,14 @@
 // we need direct API access via Corsair or Zoom OAuth.
 
 import { NextResponse } from 'next/server';
-import { DEFAULT_TENANT } from '@/constants/gmail';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { topic, duration, startTime } = body;
@@ -22,7 +27,7 @@ export async function POST(request: Request) {
     // Attempt to create via Corsair Zoom plugin
     try {
       const { corsair } = await import('@/corsair');
-      const tenant = corsair.withTenant(DEFAULT_TENANT);
+      const tenant = corsair.withTenant(tenantId);
 
       // Check if zoom plugin exists on the tenant
       const zoom = (tenant as Record<string, unknown>).zoom as {

@@ -1,5 +1,6 @@
 // lib/v1/email-assistant/ask.ts
 // Main entry: takes email context + user question, routes to direct/search/off_topic.
+// FIXED: tenant_id filtering on getEmailContext + handleChatQuery search fallback.
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
@@ -12,13 +13,16 @@ import type { AssistantResponse, EmailContext, ChatHistoryMessage } from './type
 const MODEL = 'deepseek/deepseek-v4-flash';
 
 // ---------------------------------------------------------------------------
-// Fetch email from DB
+// Fetch email from DB (tenant-scoped)
 // ---------------------------------------------------------------------------
 
-export async function getEmailContext(emailId: string): Promise<EmailContext | null> {
+export async function getEmailContext(emailId: string, tenantId: string): Promise<EmailContext | null> {
   const result = await db.execute(sql`
     SELECT id, subject, from_email, from_name, to_emails, body_text, received_at, ai_analysis
-    FROM emails WHERE id = ${emailId} LIMIT 1
+    FROM emails
+    WHERE tenant_id = ${tenantId}
+      AND id = ${emailId}
+    LIMIT 1
   `);
 
   const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -126,14 +130,15 @@ export async function askAboutEmail(
   emailId: string,
   userMessage: string,
   history: ChatHistoryMessage[] = [],
+  tenantId: string = 'default',
 ): Promise<AssistantResponse> {
   // Validate
   if (!userMessage.trim()) {
     return { type: 'off_topic', answer: 'Please ask a question about this email.' };
   }
 
-  // Fetch email
-  const email = await getEmailContext(emailId);
+  // Fetch email — scoped to tenant so users can only access their own emails
+  const email = await getEmailContext(emailId, tenantId);
   if (!email) {
     return { type: 'off_topic', answer: 'Email not found.' };
   }
@@ -146,9 +151,9 @@ export async function askAboutEmail(
     return { type: route.type, answer: route.answer };
   }
 
-  // Handle search — use the existing hybrid search pipeline
+  // Handle search — use the existing hybrid search pipeline (tenant-scoped)
   try {
-    const searchResult = await handleChatQuery(route.search_query);
+    const searchResult = await handleChatQuery(route.search_query, { tenantId });
 
     return {
       type: 'search',

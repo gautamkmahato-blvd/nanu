@@ -5,13 +5,19 @@
 import { NextResponse } from 'next/server';
 
 import { classifySyncedEmails } from '@/lib/v1/ai/classify';
+import { getTenantId } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const stats = await classifySyncedEmails();
+    const stats = await classifySyncedEmails(tenantId);
     return NextResponse.json(stats);
   } catch (error) {
     console.error('[ai] process route failed:', error);

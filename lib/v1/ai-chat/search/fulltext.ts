@@ -13,6 +13,7 @@ import type { SearchResultEmail } from '../types';
 export async function fulltextSearch(
   searchTerms: string,
   limit = 10,
+  tenantId = 'default',
 ): Promise<SearchResultEmail[]> {
   const cleaned = searchTerms.trim().replace(/[^\w\s]/g, ' ').trim();
   if (!cleaned) return [];
@@ -29,7 +30,8 @@ export async function fulltextSearch(
       ai_analysis->>'summary' AS summary,
       ts_rank(search_vector, to_tsquery('english', ${buildOrQuery(cleaned)})) AS rank
     FROM emails
-    WHERE is_sent = false
+    WHERE tenant_id = ${tenantId}
+      AND is_sent = false
       AND search_vector @@ to_tsquery('english', ${buildOrQuery(cleaned)})
     ORDER BY rank DESC
     LIMIT ${limit}

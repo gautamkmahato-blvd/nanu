@@ -4,10 +4,16 @@
 
 import { NextResponse } from 'next/server';
 import { embedPendingEmails } from '@/lib/v1/ai-chat/embeddings/batch';
+import { getTenantId } from '@/lib/auth/session';
 
 export async function POST() {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const stats = await embedPendingEmails();
+    const stats = await embedPendingEmails(tenantId);
     return NextResponse.json(stats);
   } catch (error) {
     console.error('[embed] route failed:', error);

@@ -5,14 +5,15 @@
 import { sql } from 'drizzle-orm';
 import type { Meeting, MeetingAttendee, StepResult } from './types';
 import { db } from '@/db';
+import { fetchCalendarEvents as fetchFromCorsair } from '@/lib/v1/calendar/events';
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-export async function getMeetings(hours: number = 24): Promise<StepResult<Meeting[]>> {
+export async function getMeetings(hours: number = 24, tenantId = 'default'): Promise<StepResult<Meeting[]>> {
   try {
-    const meetings = await fetchCalendarEvents(hours);
+    const meetings = await fetchCalendarEvents(hours, tenantId);
     const withAttendees = filterMeetingsWithAttendees(meetings);
 
     if (withAttendees.length === 0) {
@@ -20,7 +21,7 @@ export async function getMeetings(hours: number = 24): Promise<StepResult<Meetin
     }
 
     // Enrich attendees with relationship type from our emails DB
-    const enriched = await enrichAttendeesFromDB(withAttendees);
+    const enriched = await enrichAttendeesFromDB(withAttendees, tenantId);
 
     return { ok: true, data: enriched };
   } catch (err) {
@@ -29,26 +30,16 @@ export async function getMeetings(hours: number = 24): Promise<StepResult<Meetin
 }
 
 // ---------------------------------------------------------------------------
-// Sub-step 1a: Fetch events from calendar API
+// Sub-step 1a: Fetch events from calendar API (direct lib call, not HTTP)
 // ---------------------------------------------------------------------------
 
-async function fetchCalendarEvents(hours: number): Promise<Meeting[]> {
+async function fetchCalendarEvents(hours: number, tenantId: string): Promise<Meeting[]> {
   const now = new Date();
   const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'}/api/v1/calendar/events?start=${now.toISOString()}&end=${end.toISOString()}`,
-    { cache: 'no-store' }
-  );
+  const events = await fetchFromCorsair(now.toISOString(), end.toISOString(), tenantId);
 
-  if (!res.ok) {
-    throw new Error(`Calendar API returned ${res.status}`);
-  }
-
-  const data = await res.json();
-  const events = data.events ?? [];
-
-  return events.map((e: any) => ({
+  return events.map((e) => ({
     id: e.id,
     summary: e.summary ?? 'Untitled Meeting',
     description: e.description ?? null,
@@ -57,7 +48,7 @@ async function fetchCalendarEvents(hours: number): Promise<Meeting[]> {
     endTime: e.endTime,
     hangoutLink: e.hangoutLink ?? null,
     htmlLink: e.htmlLink ?? null,
-    attendees: (e.attendees ?? []).map((a: any) => ({
+    attendees: (e.attendees ?? []).map((a) => ({
       email: a.email,
       name: a.displayName ?? null,
       responseStatus: a.responseStatus ?? 'needsAction',
@@ -83,7 +74,7 @@ function filterMeetingsWithAttendees(meetings: Meeting[]): Meeting[] {
 // Sub-step 1c: Enrich attendees with relationship type from DB
 // ---------------------------------------------------------------------------
 
-async function enrichAttendeesFromDB(meetings: Meeting[]): Promise<Meeting[]> {
+async function enrichAttendeesFromDB(meetings: Meeting[], tenantId: string): Promise<Meeting[]> {
   // Collect all unique external attendee emails
   const allEmails = new Set<string>();
   for (const m of meetings) {
@@ -102,7 +93,8 @@ async function enrichAttendeesFromDB(meetings: Meeting[]): Promise<Meeting[]> {
     const rows = await db.execute(sql`
       SELECT DISTINCT from_email, ai_analysis->>'relationship_type' as relationship_type
       FROM emails
-      WHERE from_email = ANY(${emailList})
+      WHERE tenant_id = ${tenantId}
+        AND from_email = ANY(${emailList})
         AND ai_analysis->>'relationship_type' IS NOT NULL
         AND ai_analysis->>'relationship_type' != 'other'
       ORDER BY from_email

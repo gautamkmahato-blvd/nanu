@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import type { TaskEmail } from '@/lib/v1/tasks-deadlines/types';
 
-export async function getTaskEmails(): Promise<TaskEmail[]> {
+export async function getTaskEmails(tenantId = 'default'): Promise<TaskEmail[]> {
   const result = await db.execute(sql`
     SELECT DISTINCT ON (thread_id)
       id,
@@ -17,7 +17,8 @@ export async function getTaskEmails(): Promise<TaskEmail[]> {
       action_taken,
       ai_analysis
     FROM emails
-    WHERE is_archived = false
+    WHERE tenant_id = ${tenantId}
+      AND is_archived = false
       AND is_sent = false
       AND ai_analysis IS NOT NULL
     ORDER BY thread_id, received_at DESC

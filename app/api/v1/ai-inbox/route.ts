@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { getAIInboxThreads, type AIInboxThread, type TimePeriod } from '@/lib/v1/queries/ai-inbox';
 import { derivePriority, type AttentionType, type PriorityLevel } from '@/lib/v1/priority';
 import { deriveAttentionLabels } from '@/lib/v1/dashboard/attention-labels';
+import { getTenantId } from '@/lib/auth/session';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -149,6 +150,11 @@ function buildGroups(threads: EnrichedThread[]): ThreadGroup[] {
 const VALID_TIME_PERIODS: TimePeriod[] = ['today', '3days', 'week', '15days', 'month', 'all'];
 
 export async function GET(request: Request) {
+  const tenantId = await getTenantId();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const limit = Math.min(Number(searchParams.get('limit')) || 50, 200);
   const offset = Number(searchParams.get('offset')) || 0;
@@ -158,7 +164,7 @@ export async function GET(request: Request) {
     : 'all';
 
   try {
-    const rawThreads = await getAIInboxThreads(limit, offset, timePeriod);
+    const rawThreads = await getAIInboxThreads(limit, offset, timePeriod, tenantId);
     let threads = rawThreads.map(enrichThread);
 
     // Sort: status group → priority score → time

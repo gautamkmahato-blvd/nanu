@@ -36,6 +36,7 @@ export type AgentRequest = {
   emailContext?: EmailContext;
   pendingAction?: PendingAction;
   confirmed?: boolean;
+  tenantId?: string; // multi-tenant: passed from API route session
 };
 
 export type AgentResponse =
