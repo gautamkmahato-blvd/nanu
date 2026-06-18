@@ -14,6 +14,7 @@ import {
   Tags,
   CheckSquare,
   PenSquare,
+  Paperclip,
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: React.ElementType; badge?: string };
@@ -43,6 +44,7 @@ const SECTIONS: NavSection[] = [
       { href: '/mails/v1/board', label: 'Kanban Board', icon: KanbanSquare },
       { href: '/mails/v1/categories', label: 'Categories', icon: Tags },
       { href: '/mails/v1/tasks-deadlines', label: 'Tasks', icon: CheckSquare },
+      { href: '/mails/v1/assets', label: 'Assets', icon: Paperclip },
     ],
   },
 ];
