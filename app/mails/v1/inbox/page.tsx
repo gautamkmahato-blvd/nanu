@@ -434,7 +434,7 @@ async function handleSync() {
       {/* ── Idle state ── */}
       {syncProgress.phase === 'idle' && (
         <>
-          <p className="text-[13px] text-mail-muted m-0 mb-2">This will sync your latest 500 emails from Gmail.</p>
+          <p className="text-[13px] text-mail-muted m-0 mb-2">This will sync your latest 20 emails from Gmail.</p>
           <p className="text-[12px] text-mail-subtle m-0 mb-5">Emails will be AI-analyzed and embedded for search after sync.</p>
         </>
       )}
