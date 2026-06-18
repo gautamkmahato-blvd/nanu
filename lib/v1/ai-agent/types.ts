@@ -30,6 +30,21 @@ export type SearchResultEmail = {
   match_sources: ('structured' | 'fulltext' | 'semantic')[];
 };
 
+export type AssetResult = {
+  id: string;
+  emailId: string;
+  type: string; // 'attachment' | 'link' | 'inline_image'
+  filename: string | null;
+  url: string | null;
+  mimeCategory: string;
+  size: number | null;
+  domain: string | null;
+  fromEmail: string;
+  fromName: string | null;
+  subject: string | null;
+  receivedAt: string;
+};
+
 export type AgentRequest = {
   message: string;
   conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
@@ -40,6 +55,6 @@ export type AgentRequest = {
 };
 
 export type AgentResponse =
-  | { status: 'done'; message: string; toolsUsed: string[]; emails?: SearchResultEmail[] }
-  | { status: 'needs_confirmation'; message: string; pendingAction: PendingAction; toolsUsed: string[]; emails?: SearchResultEmail[] }
-  | { status: 'error'; message: string; toolsUsed: string[]; emails?: SearchResultEmail[] };
+  | { status: 'done'; message: string; toolsUsed: string[]; emails?: SearchResultEmail[]; assets?: AssetResult[] }
+  | { status: 'needs_confirmation'; message: string; pendingAction: PendingAction; toolsUsed: string[]; emails?: SearchResultEmail[]; assets?: AssetResult[] }
+  | { status: 'error'; message: string; toolsUsed: string[]; emails?: SearchResultEmail[]; assets?: AssetResult[] };

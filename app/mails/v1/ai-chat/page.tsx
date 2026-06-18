@@ -7,7 +7,7 @@ import MarkdownRenderer from '../_components/ui/MarkdownRenderer';
 import {
   Send, Sparkles, Loader2, CheckCircle, XCircle, Bot,
   Search, Mail, Calendar, Clock, Reply, Zap, FileText, ListChecks,
-  ShieldAlert, ArrowRight,
+  ShieldAlert, ArrowRight, Image, Paperclip,
 } from 'lucide-react';
 import ChatSidebar from './_components/Chatsidebar';
 
@@ -22,11 +22,26 @@ type SearchResultEmail = {
   relevance_score: number; match_sources: string[];
 };
 
+type AssetResult = {
+  id: string;
+  emailId: string;
+  type: string;
+  filename: string | null;
+  url: string | null;
+  mimeCategory: string;
+  size: number | null;
+  domain: string | null;
+  fromEmail: string;
+  fromName: string | null;
+  subject: string | null;
+  receivedAt: string;
+};
+
 type PendingAction = { callId: string; tool: string; args: Record<string, unknown>; preview: string };
 
 type ChatMessage = {
   role: 'user' | 'assistant'; content: string;
-  emails?: SearchResultEmail[]; toolsUsed?: string[]; isPending?: boolean;
+  emails?: SearchResultEmail[]; assets?: AssetResult[]; toolsUsed?: string[]; isPending?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -49,6 +64,7 @@ const TOOL_BADGES: Record<string, { label: string; icon: React.ElementType; colo
   run_script: { label: 'Corsair', icon: Zap, color: '#ec4899' },
   list_operations: { label: 'Discover', icon: ListChecks, color: '#6b7280' },
   get_schema: { label: 'Schema', icon: FileText, color: '#6b7280' },
+  search_assets: { label: 'Assets', icon: Paperclip, color: '#f97316' },
 };
 
 const SUGGESTIONS = [
@@ -138,7 +154,7 @@ export default function AIChatPage() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }, []);
 
-  // ── Send message (AI agent logic UNCHANGED) ──
+  // ── Send message ──
   const sendMessage = useCallback(async (text: string) => {
     const userMsg = text.trim();
     if (!userMsg || loading) return;
@@ -153,7 +169,7 @@ export default function AIChatPage() {
 
       const assistantMsg: ChatMessage = {
         role: 'assistant', content: data.message,
-        toolsUsed: data.toolsUsed, emails: data.emails,
+        toolsUsed: data.toolsUsed, emails: data.emails, assets: data.assets,
         isPending: data.status === 'needs_confirmation',
       };
 
@@ -178,7 +194,7 @@ export default function AIChatPage() {
     } finally { setLoading(false); scrollToBottom(); }
   }, [loading, messages, scrollToBottom, conversationId]);
 
-  // ── Confirm/Cancel (UNCHANGED logic) ──
+  // ── Confirm/Cancel ──
   const handleConfirm = useCallback(async () => {
     if (!pendingAction || loading) return;
     setLoading(true);
@@ -249,7 +265,7 @@ export default function AIChatPage() {
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-mail-accent-soft text-mail-accent">AI Powered</span>
             <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">Can act</span>
           </div>
-          <span className="text-xs text-mail-subtle">Search · Email · Calendar · Actions</span>
+          <span className="text-xs text-mail-subtle">Search · Email · Calendar · Assets · Actions</span>
         </div>
 
         {/* Messages area */}
@@ -332,11 +348,26 @@ export default function AIChatPage() {
                       </div>
                     )}
 
+                    {/* Email results */}
                     {msg.emails && msg.emails.length > 0 && (
                       <div className="mt-3 flex flex-col gap-1.5">
                         {msg.emails.map((email) => (
                           <EmailCard key={email.id} email={email} onClick={() => router.push(`/mails/v1/ai-email-details/${email.id}`)} />
                         ))}
+                      </div>
+                    )}
+
+                    {/* Asset results with previews */}
+                    {msg.assets && msg.assets.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-mail-subtle mb-2 flex items-center gap-1">
+                          <Paperclip size={10} /> Files Found
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {msg.assets.map((asset) => (
+                            <AssetCard key={asset.id} asset={asset} onClick={() => router.push(`/mails/v1/ai-email-details/${asset.emailId}`)} />
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -368,7 +399,7 @@ export default function AIChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={pendingAction ? 'Confirm or cancel above...' : 'Search emails, send messages, schedule meetings...'}
+                placeholder={pendingAction ? 'Confirm or cancel above...' : 'Search emails, send messages, find files...'}
                 disabled={loading || !!pendingAction}
                 rows={2}
                 className="w-full px-4 pt-3 pb-10 rounded-xl bg-transparent text-mail-text text-[14px] font-[inherit] outline-none resize-none placeholder:text-mail-subtle disabled:opacity-50"
@@ -425,6 +456,64 @@ function EmailCard({ email, onClick }: { email: SearchResultEmail; onClick: () =
         <span className="text-[9px] text-mail-subtle font-mono ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
           <ArrowRight size={9} /> Open
         </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Asset Card — with image preview for images
+// ---------------------------------------------------------------------------
+
+function AssetCard({ asset, onClick }: { asset: AssetResult; onClick: () => void }) {
+  const isImage = asset.mimeCategory === 'image' || asset.type === 'inline_image';
+  const [imgError, setImgError] = useState(false);
+  const name = asset.filename || 'Untitled';
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    pdf: '#ef4444', image: '#3b82f6', document: '#6366f1',
+    spreadsheet: '#22c55e', presentation: '#f59e0b', archive: '#8b5cf6',
+    video: '#ec4899', audio: '#06b6d4', code: '#a3e635', other: '#6b7280',
+  };
+  const color = CATEGORY_COLORS[asset.mimeCategory] ?? '#6b7280';
+
+  const formatSize = (bytes: number | null) => {
+    if (bytes == null) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div onClick={onClick}
+      className="rounded-lg border border-mail-border bg-mail-surface overflow-hidden cursor-pointer hover:border-mail-accent/40 transition-colors group">
+      {/* Preview area */}
+      <div className="h-[80px] flex items-center justify-center bg-mail-bg overflow-hidden relative">
+        {isImage && !imgError ? (
+          <img
+            src={`/api/v1/assets/preview/${asset.id}`}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-md flex items-center justify-center"
+            style={{ background: `${color}15` }}>
+            {isImage ? <Image size={16} style={{ color }} /> : <Paperclip size={16} style={{ color }} />}
+          </div>
+        )}
+      </div>
+      {/* Info */}
+      <div className="px-2.5 py-2">
+        <div className="text-[11px] font-medium text-mail-text truncate" title={name}>{name}</div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-[9px] font-medium px-1 py-0.5 rounded"
+            style={{ background: `${color}15`, color }}>
+            {asset.mimeCategory}
+          </span>
+          {asset.size && <span className="text-[9px] text-mail-subtle font-mono">{formatSize(asset.size)}</span>}
+        </div>
       </div>
     </div>
   );

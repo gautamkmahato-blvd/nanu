@@ -1,7 +1,8 @@
 // lib/v1/ai-agent/agent.ts
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 import openRouterClient from '@/config/openrouter/config';
-import { initializeTools, executeToolWithTimeout, generatePreview, DESTRUCTIVE_TOOLS } from './tools';import type { AgentRequest, AgentResponse, EmailContext, SearchResultEmail } from './types';
+import { initializeTools, executeToolWithTimeout, generatePreview, DESTRUCTIVE_TOOLS } from './tools';
+import type { AgentRequest, AgentResponse, EmailContext, SearchResultEmail, AssetResult } from './types';
 
 const MODEL = 'anthropic/claude-haiku-4-5';
 const MAX_ITERATIONS = 8;
@@ -40,6 +41,7 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
   const tid = tenantId ?? 'default';
   const toolsUsed: string[] = [];
   const collectedEmails: SearchResultEmail[] = [];
+  const collectedAssets: AssetResult[] = [];
 
   try {
     const tools = await initializeTools(!!emailContext) as ChatCompletionTool[];
@@ -72,12 +74,12 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
       messages.push({ role: 'tool', tool_call_id: pendingAction.callId, content: JSON.stringify(result) });
 
       const finalRes = await openRouterClient.chat.completions.create({ model: MODEL, max_tokens: 500, messages });
-      return { status: 'done', message: finalRes.choices[0]?.message?.content ?? 'Action completed.', toolsUsed, emails: collectedEmails };
+      return { status: 'done', message: finalRes.choices[0]?.message?.content ?? 'Action completed.', toolsUsed, emails: collectedEmails, assets: collectedAssets };
     }
 
     // --- Confirmation rejection ---
     if (pendingAction && confirmed === false) {
-      return { status: 'done', message: 'Action cancelled.', toolsUsed, emails: [] };
+      return { status: 'done', message: 'Action cancelled.', toolsUsed, emails: [], assets: [] };
     }
 
     // --- Normal flow ---
@@ -87,13 +89,13 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
       const response = await openRouterClient.chat.completions.create({ model: MODEL, max_tokens: 2000, tools, messages });
 
       const choice = response.choices[0];
-      if (!choice) return { status: 'error', message: 'No LLM response', toolsUsed, emails: [] };
+      if (!choice) return { status: 'error', message: 'No LLM response', toolsUsed, emails: [], assets: [] };
 
       const assistantMsg = choice.message;
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
-        return { status: 'done', message: assistantMsg.content ?? '', toolsUsed, emails: collectedEmails };
+        return { status: 'done', message: assistantMsg.content ?? '', toolsUsed, emails: collectedEmails, assets: collectedAssets };
       }
 
       messages.push({
@@ -124,6 +126,7 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
             pendingAction: { callId: tc.id, tool: fnName, args, preview },
             toolsUsed,
             emails: collectedEmails,
+            assets: collectedAssets,
           };
         }
 
@@ -137,13 +140,21 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
           }
         }
 
+        // Capture assets from search_assets for UI rendering
+        if (fnName === 'search_assets' && result.success) {
+          const data = result.data as { assets?: AssetResult[] };
+          if (data?.assets && Array.isArray(data.assets)) {
+            collectedAssets.push(...data.assets);
+          }
+        }
+
         messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
       }
     }
 
-    return { status: 'error', message: 'Reached maximum iterations.', toolsUsed, emails: [] };
+    return { status: 'error', message: 'Reached maximum iterations.', toolsUsed, emails: [], assets: [] };
   } catch (err) {
     console.error('[ai-agent] error:', err instanceof Error ? err.message : err);
-    return { status: 'error', message: err instanceof Error ? err.message : 'Agent failed', toolsUsed, emails: [] };
+    return { status: 'error', message: err instanceof Error ? err.message : 'Agent failed', toolsUsed, emails: [], assets: [] };
   }
 }

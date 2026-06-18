@@ -1,1539 +1,1077 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState, ReactNode } from "react";
 import {
   ArrowRight,
-  ChevronDown,
-  Star,
-  Menu,
-  X,
+  ArrowUpRight,
   Mail,
   BarChart3,
-  Users,
   Zap,
   MessageSquare,
-  FileText,
   Sparkles,
-  PenTool,
-  Expand,
-  Clock,
-  Shield,
+  Search,
   Calendar,
-  Inbox,
-  BellRing,
-  Send,
+  Bell,
   CheckCircle2,
+  Shield,
+  Database,
+  Server,
+  Lock,
+  Send,
+  Clock,
+  Tag,
+  Columns3,
+  Brain,
+  Activity,
+  ChevronRight,
+  Star,
+  AlertTriangle,
   TrendingUp,
-  TrendingDown,
-  Copy,
-  Palette,
-  Code2,
-  Factory,
-  Inspect,
-  TowelRackIcon,
-  Library,
+  Minus,
+  Eye,
+  Inbox,
+  ListChecks,
+  Contact,
+  Radio,
+  FileText,
+  Menu,
+  X,
 } from "lucide-react";
 
-/* ─────────────────────────────────────────────
-   DESIGN TOKENS  (dark theme, amber-orange accent)
-   ───────────────────────────────────────────── */
-const t = {
+/* ══════════════════════════════════════════════
+   TOKENS
+   ══════════════════════════════════════════════ */
+const c = {
   bg: "#09090b",
-  surface: "#121214",
-  surfaceAlt: "#18181b",
-  card: "#1a1a1f",
-  cardHover: "#222228",
-  border: "#27272a",
-  borderSubtle: "#1e1e22",
+  surface: "#0f0f12",
+  card: "#141418",
+  cardAlt: "#1a1a1f",
+  border: "#1e1e22",
+  borderLight: "#27272a",
   text: "#fafafa",
   muted: "#a1a1aa",
   subtle: "#52525b",
+  dim: "#3f3f46",
   accent: "#ed8b3a",
   accentHover: "#d47d27",
-  accentSoft: "rgba(237,139,58,0.1)",
-  accentSofter: "rgba(237,139,58,0.06)",
+  accentSoft: "rgba(237,139,58,0.08)",
+  accentMid: "rgba(237,139,58,0.15)",
+  green: "#4ade80",
+  red: "#f87171",
+  blue: "#60a5fa",
+  yellow: "#fbbf24",
+  purple: "#a78bfa",
 };
 
-/* ─── NAV ─── */
-function Navbar() {
-  const [open, setOpen] = useState(false);
-  const links = ["Home", "About Us", "Reviews", "Products", "Blog"];
+/* ══════════════════════════════════════════════
+   SCROLL FADE-IN
+   ══════════════════════════════════════════════ */
+function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.12 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   return (
-    <nav
-      className="sticky top-0 z-50 backdrop-blur-xl border-b"
+    <div
+      ref={ref}
+      className={className}
       style={{
-        background: `${t.bg}cc`,
-        borderColor: t.borderSubtle,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(20px)",
+        transition: `opacity 0.6s ease ${delay}ms, transform 0.6s ease ${delay}ms`,
       }}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-7 h-7" style={{ color: t.accent }} />
-          <span
-            className="text-xl font-bold tracking-tight"
-            style={{ color: t.text }}
+      {children}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   DOT GRID BACKGROUND
+   ══════════════════════════════════════════════ */
+function DotGrid() {
+  return (
+    <div
+      className="absolute inset-0 -z-10 pointer-events-none"
+      style={{
+        backgroundImage: `radial-gradient(${c.dim} 1px, transparent 1px)`,
+        backgroundSize: "24px 24px",
+        opacity: 0.3,
+        maskImage: "linear-gradient(to bottom, transparent, black 20%, black 80%, transparent)",
+        WebkitMaskImage: "linear-gradient(to bottom, transparent, black 20%, black 80%, transparent)",
+      }}
+    />
+  );
+}
+
+/* ══════════════════════════════════════════════
+   NAV
+   ══════════════════════════════════════════════ */
+function Nav() {
+  const [open, setOpen] = useState(false);
+  return (
+    <nav
+      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl"
+      style={{ background: `${c.bg}dd`, borderBottom: `1px solid ${c.border}` }}
+    >
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 h-14">
+        <a href="/" className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 rounded flex items-center justify-center"
+            style={{ background: c.accent }}
           >
-            Vistore.
+            <Mail className="w-3.5 h-3.5" style={{ color: "#000" }} />
+          </div>
+          <span className="font-semibold text-sm tracking-tight" style={{ color: c.text }}>
+            Context Mode
           </span>
+        </a>
+
+        <div className="hidden md:flex items-center gap-6 text-[13px]" style={{ color: c.muted }}>
+          <a href="#features" className="hover:text-white transition">Features</a>
+          <a href="#how-it-works" className="hover:text-white transition">How It Works</a>
+          <a href="#security" className="hover:text-white transition">Security</a>
         </div>
 
-        <div
-          className="hidden md:flex items-center gap-1 rounded-full px-2 py-1.5 text-sm"
-          style={{ background: t.surfaceAlt, border: `1px solid ${t.border}` }}
-        >
-          {links.map((l) => (
-            <a
-              key={l}
-              href="#"
-              className="px-4 py-1.5 rounded-full transition"
-              style={{
-                background: l === "Home" ? t.accent : "transparent",
-                color: l === "Home" ? "#000" : t.muted,
-                fontWeight: l === "Home" ? 600 : 400,
-              }}
-            >
-              {l}
-            </a>
-          ))}
-        </div>
-
-        <div className="hidden md:flex items-center gap-3 text-sm">
-          <a href="#" style={{ color: t.muted }}>
-            Sign In
+        <div className="hidden md:flex items-center gap-3 text-[13px]">
+          <a href="/login" style={{ color: c.muted }} className="hover:text-white transition">
+            Sign in
           </a>
           <a
-            href="#"
-            className="rounded-full px-5 py-2 font-medium transition"
-            style={{
-              border: `1px solid ${t.border}`,
-              color: t.text,
-            }}
+            href="/login"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition text-[13px]"
+            style={{ background: c.accent, color: "#000" }}
           >
-            Sign up Free
+            Get Started <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
 
         <button className="md:hidden" onClick={() => setOpen(!open)}>
-          {open ? (
-            <X className="w-6 h-6" style={{ color: t.text }} />
-          ) : (
-            <Menu className="w-6 h-6" style={{ color: t.text }} />
-          )}
+          {open
+            ? <X className="w-5 h-5" style={{ color: c.text }} />
+            : <Menu className="w-5 h-5" style={{ color: c.text }} />}
         </button>
       </div>
 
       {open && (
-        <div
-          className="md:hidden px-6 py-4 space-y-3"
-          style={{
-            background: t.surface,
-            borderTop: `1px solid ${t.border}`,
-          }}
-        >
-          {links.map((l) => (
-            <a
-              key={l}
-              href="#"
-              className="block"
-              style={{ color: t.muted }}
-            >
-              {l}
-            </a>
-          ))}
-          <div
-            className="pt-3 space-y-2"
-            style={{ borderTop: `1px solid ${t.border}` }}
+        <div className="md:hidden px-6 pb-4 space-y-3 text-sm" style={{ background: c.bg, borderTop: `1px solid ${c.border}` }}>
+          <a href="#features" className="block py-2" style={{ color: c.muted }}>Features</a>
+          <a href="#how-it-works" className="block py-2" style={{ color: c.muted }}>How It Works</a>
+          <a href="#security" className="block py-2" style={{ color: c.muted }}>Security</a>
+          <a href="/login" className="block py-2" style={{ color: c.muted }}>Sign in</a>
+          <a
+            href="/login"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg font-medium"
+            style={{ background: c.accent, color: "#000" }}
           >
-            <a href="#" className="block" style={{ color: t.muted }}>
-              Sign In
-            </a>
-            <a
-              href="#"
-              className="block text-center rounded-full py-2 font-medium"
-              style={{ border: `1px solid ${t.border}`, color: t.text }}
-            >
-              Sign up Free
-            </a>
-          </div>
+            Get Started Free <ArrowRight className="w-3.5 h-3.5" />
+          </a>
         </div>
       )}
     </nav>
   );
 }
 
-/* ─── HERO ─── */
+/* ══════════════════════════════════════════════
+   HERO
+   ══════════════════════════════════════════════ */
 function Hero() {
-  const logos = ["Boltshift", "Lightbox", "Spherule", "GlobalBank", "Nietzsche"];
   return (
-    <section className="relative overflow-hidden">
-      {/* radial glow */}
+    <section className="relative pt-32 pb-4 overflow-hidden">
+      <DotGrid />
+      {/* warm glow */}
       <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-[120px] -z-10"
-        style={{ background: `radial-gradient(ellipse, ${t.accentSoft} 0%, transparent 70%)` }}
+        className="absolute top-12 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-[120px] -z-10"
+        style={{ background: `radial-gradient(ellipse, ${c.accentSoft} 0%, transparent 70%)` }}
       />
 
-      <div className="max-w-4xl mx-auto text-center pt-20 pb-8 px-6">
-        <span
-          className="inline-flex items-center gap-2 text-sm mb-6"
-          style={{ color: t.muted }}
-        >
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ background: t.accent }}
-          />
-          Top CRM Platform 🚀
-        </span>
-        <h1
-          className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] mb-6"
-          style={{ color: t.text }}
-        >
-          Smarter CRM{" "}
-          <span style={{ color: t.accent }}>Stronger</span>
-          <br />
-          Sustainable Sales
-        </h1>
-        <p
-          className="text-lg max-w-xl mx-auto mb-8"
-          style={{ color: t.muted }}
-        >
-          Our CRM helps you nurture relationships, automate sales processes, and
-          make data-driven decisions — so you can focus on closing more deals.
-        </p>
-        <a
-          href="#"
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-medium transition"
-          style={{ background: t.accent, color: "#000" }}
-        >
-          Get Started <ArrowRight className="w-4 h-4" />
-        </a>
-      </div>
-
-      {/* dashboard card */}
-      <div className="max-w-5xl mx-auto px-6 pb-10">
-        <div
-          className="rounded-2xl p-6 sm:p-8"
-          style={{
-            background: t.surface,
-            border: `1px solid ${t.border}`,
-            boxShadow: `0 24px 80px -12px rgba(0,0,0,0.6)`,
-          }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3
-                className="text-xl font-semibold flex items-center gap-2"
-                style={{ color: t.text }}
-              >
-                <BarChart3 className="w-5 h-5" style={{ color: t.accent }} />
-                Promotion Analysis
-              </h3>
-              <p className="text-sm mt-0.5" style={{ color: t.subtle }}>
-                Automatic private sector investing
-              </p>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 text-sm">
-              <span
-                className="rounded-lg px-3 py-1.5"
-                style={{ background: t.surfaceAlt, color: t.muted, border: `1px solid ${t.border}` }}
-              >
-                Last Week
-              </span>
-              <span
-                className="rounded-lg px-3 py-1.5 font-medium"
-                style={{ background: t.accent, color: "#000" }}
-              >
-                Export ↗
-              </span>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            {/* sales target */}
-            <div
-              className="rounded-xl p-5"
-              style={{ background: t.surfaceAlt, border: `1px solid ${t.borderSubtle}` }}
-            >
-              <p className="text-sm mb-3 font-medium" style={{ color: t.muted }}>
-                Sales Target
-              </p>
-              <p className="text-4xl font-bold" style={{ color: t.text }}>
-                <span style={{ color: t.accent }}>%</span> 86
-              </p>
-              <p className="text-xs mt-1" style={{ color: t.subtle }}>
-                Better Than Last Month
-              </p>
-              <div className="flex gap-1.5 mt-4">
-                {[72, 88, 60, 95, 80].map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-full"
-                    style={{
-                      height: `${h * 0.6}px`,
-                      background: [
-                        t.accent,
-                        "#fbbf24",
-                        "#f97316",
-                        t.accent,
-                        "#fbbf24",
-                      ][i],
-                      opacity: [0.7, 0.5, 0.6, 0.8, 0.5][i],
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* recent activity */}
-            <div
-              className="rounded-xl p-5"
-              style={{ background: t.surfaceAlt, border: `1px solid ${t.borderSubtle}` }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium" style={{ color: t.muted }}>
-                  Recent Activity
-                </p>
-                <TrendingUp className="w-4 h-4" style={{ color: t.accent }} />
-              </div>
-              <div className="space-y-3">
-                {[
-                  { price: "$200.00", color: "#22c55e" },
-                  { price: "$140.00", color: t.muted },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-lg"
-                      style={{ background: `${t.accent}20` }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="text-sm font-medium truncate"
-                        style={{ color: t.text }}
-                      >
-                        Stone Black Jacket
-                      </p>
-                      <p className="text-xs" style={{ color: t.subtle }}>
-                        Qty: 10 · 5 Min Ago
-                      </p>
-                    </div>
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: item.color }}
-                    >
-                      {item.price}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* savings goal */}
-            <div
-              className="rounded-xl p-5"
-              style={{ background: t.accentSoft, border: `1px solid ${t.accent}22` }}
-            >
-              <p className="text-sm font-medium mb-1" style={{ color: t.muted }}>
-                My Saving Goals
-              </p>
-              <p className="text-xs mb-3" style={{ color: t.subtle }}>
-                Lancer Evo 10 · Yes Targeted &gt; 87%
-              </p>
-              <div
-                className="w-full rounded-full h-2 mb-4"
-                style={{ background: `${t.accent}30` }}
-              >
-                <div
-                  className="h-2 rounded-full w-3/4"
-                  style={{ background: t.accent }}
-                />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: t.text }}>
-                $24,120{" "}
-                <span
-                  className="text-sm font-normal"
-                  style={{ color: t.subtle }}
-                >
-                  /$32,200
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* logos */}
-      <div className="max-w-5xl mx-auto px-6 pb-16">
-        <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
-          {logos.map((name) => (
-            <span
-              key={name}
-              className="text-lg font-semibold tracking-wide"
-              style={{ color: t.subtle }}
-            >
-              {name}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── AI TOOLS GRID ─── */
-function AIToolsGrid() {
-  const tools = [
-    {
-      icon: <Sparkles className="w-5 h-5" />,
-      title: "AI Subject Line",
-      desc: "Boost open rates with smart, catchy headlines tailored to your audience.",
-      featured: true,
-    },
-    {
-      icon: <FileText className="w-5 h-5" />,
-      title: "Smart Summary",
-      desc: "Make your message digestible by summarizing content for busy readers.",
-    },
-    {
-      icon: <Shield className="w-5 h-5" />,
-      title: "Fix Grammar",
-      desc: "Ensure clarity and professionalism with AI-powered error fixes.",
-    },
-    {
-      icon: <MessageSquare className="w-5 h-5" />,
-      title: "Rephrase Message",
-      desc: "Instantly reword your text to match your brand voice or campaign needs.",
-    },
-    {
-      icon: <Expand className="w-5 h-5" />,
-      title: "Expand Content",
-      desc: "Grow your paragraph or idea to enrich the overall content strategy.",
-    },
-    {
-      icon: <Clock className="w-5 h-5" />,
-      title: "Follow-Up Generator",
-      desc: "Never miss an opportunity — keep leads warm with contextual follow-ups.",
-    },
-  ];
-
-  return (
-    <section className="py-24" style={{ background: t.surface }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2
-            className="text-4xl sm:text-5xl font-bold tracking-tight mb-4"
-            style={{ color: t.text }}
-          >
-            <span style={{ color: t.accent }}>Revolutionize</span> Your Inbox
-            <br />
-            with Swiftlet AI
-          </h2>
-          <p className="max-w-xl mx-auto" style={{ color: t.muted }}>
-            Supercharge emails using smart AI tools — from catchy subject lines
-            to summaries, grammar fixes, and flawless follow-ups.
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tools.map((tool) => (
-            <div
-              key={tool.title}
-              className="rounded-2xl p-6 transition-colors group"
-              style={{
-                background: t.card,
-                border: `1px solid ${tool.featured ? t.accent + "40" : t.border}`,
-              }}
-            >
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                style={{
-                  background: tool.featured ? t.accentSoft : `${t.subtle}20`,
-                  color: tool.featured ? t.accent : t.muted,
-                }}
-              >
-                {tool.icon}
-              </div>
-              <h3
-                className="font-semibold text-lg mb-1.5"
-                style={{ color: t.text }}
-              >
-                {tool.title}
-              </h3>
-              <p
-                className="text-sm leading-relaxed"
-                style={{ color: t.muted }}
-              >
-                {tool.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── INTELLIGENCE FEATURES ─── */
-function IntelligenceFeatures() {
-  const features = [
-    {
-      icon: <Mail className="w-5 h-5" style={{ color: "#f87171" }} />,
-      title: "AI Summaries",
-      desc: "Get the gist of any email in one glance — no more scanning long threads.",
-    },
-    {
-      icon: <Inbox className="w-5 h-5" style={{ color: t.accent }} />,
-      title: "Priority Detection",
-      desc: "Automatically labels and organizes important emails so you can act fast.",
-    },
-    {
-      icon: <Calendar className="w-5 h-5" style={{ color: "#4ade80" }} />,
-      title: "Event-Aware Sidebar",
-      desc: "See upcoming meetings and emails tied to events — all in one view.",
-    },
-  ];
-
-  const bottomFeatures = [
-    {
-      icon: <BellRing className="w-5 h-5" style={{ color: "#fbbf24" }} />,
-      title: "Smart Recommendations",
-      desc: "Follow-ups, reminders, suggested replies — Vistore nudges you at the right time.",
-    },
-    {
-      icon: <PenTool className="w-5 h-5" style={{ color: "#60a5fa" }} />,
-      title: "Writing Assistant",
-      desc: "Highlight any sentence while composing to check for tone, clarity, and professionalism.",
-    },
-  ];
-
-  const FeatureCard = ({ f }: { f: (typeof features)[0] }) => (
-    <div
-      className="rounded-2xl p-6"
-      style={{ background: t.card, border: `1px solid ${t.border}` }}
-    >
-      <div
-        className="rounded-xl p-4 mb-5 h-40 flex items-center justify-center"
-        style={{ background: t.surfaceAlt, border: `1px solid ${t.borderSubtle}` }}
-      >
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
-          style={{ background: `${t.subtle}20` }}
-        >
-          {f.icon}
-        </div>
-      </div>
-      <h3 className="font-semibold text-lg mb-1.5" style={{ color: t.text }}>
-        {f.title}
-      </h3>
-      <p className="text-sm leading-relaxed" style={{ color: t.muted }}>
-        {f.desc}
-      </p>
-    </div>
-  );
-
-  return (
-    <section className="py-24" style={{ background: t.bg }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2
-            className="text-4xl sm:text-5xl font-bold tracking-tight mb-4"
-            style={{ color: t.text }}
-          >
-            Built-in Intelligence.
-            <br />
-            Designed for Speed.
-          </h2>
-          <p className="max-w-lg mx-auto" style={{ color: t.muted }}>
-            AI features that go beyond automation — with summaries, suggestions,
-            and time-saving tools built right into your inbox.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-4 mb-4">
-          {features.map((f) => (
-            <FeatureCard key={f.title} f={f} />
-          ))}
-        </div>
-        <div className="grid md:grid-cols-2 gap-4">
-          {bottomFeatures.map((f) => (
-            <FeatureCard key={f.title} f={f} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── TESTIMONIALS ─── */
-function Testimonials() {
-  const testimonials = [
-    {
-      name: "Jordan Morgan",
-      role: "Co-Founder",
-      text: "With AI summaries and recommendations, I breeze through email in a fraction of the time it used to take me.",
-    },
-    {
-      name: "Nadia Robert",
-      role: "Product Manager",
-      text: "Vistore feels like having an assistant in my inbox. I no longer miss follow-ups or waste time digging through threads.",
-    },
-    {
-      name: "Amanda Carla",
-      role: "UX Designer",
-      text: "The most efficient email experience I've ever had. The moment I started using Vistore, I realized how much pain my old inbox was causing.",
-    },
-  ];
-
-  return (
-    <section className="py-24" style={{ background: t.surface }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2
-            className="text-4xl sm:text-5xl font-bold tracking-tight mb-4"
-            style={{ color: t.text }}
-          >
-            Real Results from Real Users
-          </h2>
-          <p className="max-w-lg mx-auto" style={{ color: t.muted }}>
-            From founders to freelancers, people are loving how Vistore
-            transforms their daily email routine.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-5">
-          {testimonials.map((item) => (
-            <div
-              key={item.name}
-              className="rounded-2xl p-6"
-              style={{ background: t.card, border: `1px solid ${t.border}` }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-10 h-10 rounded-full"
-                  style={{
-                    background: `linear-gradient(135deg, ${t.accent}40, ${t.accent}15)`,
-                  }}
-                />
-                <div>
-                  <p className="font-semibold text-sm" style={{ color: t.text }}>
-                    {item.name}
-                  </p>
-                  <p className="text-xs" style={{ color: t.subtle }}>
-                    {item.role}
-                  </p>
-                </div>
-              </div>
-              <p
-                className="text-sm leading-relaxed"
-                style={{ color: t.muted }}
-              >
-                {item.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── KEY FEATURES ─── */
-function KeyFeatures() {
-  const features = [
-    {
-      icon: <Shield className="w-5 h-5" style={{ color: t.accent }} />,
-      title: "Better Lead Management",
-      desc: "Track every interaction with potential customers in one centralized place.",
-      bg: t.accentSoft,
-    },
-    {
-      icon: <BarChart3 className="w-5 h-5" style={{ color: "#a78bfa" }} />,
-      title: "Smart Data Analytics",
-      desc: "Get real-time reports and insights to make better decisions.",
-      bg: "rgba(167,139,250,0.1)",
-    },
-  ];
-
-  return (
-    <section className="py-24" style={{ background: t.bg }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div
-          className="rounded-3xl p-8 sm:p-12"
-          style={{ background: t.surface, border: `1px solid ${t.border}` }}
-        >
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            {/* activity card */}
-            <div
-              className="rounded-2xl p-6 max-w-sm mx-auto md:mx-0"
-              style={{
-                background: t.card,
-                border: `1px solid ${t.border}`,
-                boxShadow: `0 16px 48px -8px rgba(0,0,0,0.5)`,
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg" style={{ color: t.text }}>
-                  Recent Activity
-                </h3>
-                <TrendingUp className="w-5 h-5" style={{ color: t.accent }} />
-              </div>
-
-              <div className="flex gap-4 text-xs mb-4" style={{ color: t.subtle }}>
-                <span className="flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" style={{ color: "#4ade80" }} />{" "}
-                  Incoming
-                </span>
-                <span className="flex items-center gap-1">
-                  <TrendingDown className="w-3 h-3" style={{ color: "#f87171" }} />{" "}
-                  Outgoing
-                </span>
-              </div>
-
-              {[
-                { label: "Outgoing Products", price: "$200.00" },
-                { label: "Incoming Products", price: "$140.00" },
-              ].map((section) => (
-                <div key={section.label} className="mb-4 last:mb-0">
-                  <p
-                    className="text-sm font-medium mb-2"
-                    style={{ color: t.subtle }}
-                  >
-                    {section.label}
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-lg"
-                      style={{ background: `${t.accent}15` }}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium" style={{ color: t.text }}>
-                        Stone Black Jacket
-                      </p>
-                      <p className="text-xs" style={{ color: t.subtle }}>
-                        Qty: 10 · 5 Minutes Ago
-                      </p>
-                    </div>
-                    <span className="font-semibold" style={{ color: t.text }}>
-                      {section.price}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* text */}
-            <div>
-              <span
-                className="inline-flex items-center gap-2 text-sm mb-3"
-                style={{ color: t.subtle }}
-              >
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: t.accent }}
-                />
-                Key Features
-              </span>
-              <h2
-                className="text-3xl sm:text-4xl font-bold tracking-tight mb-8"
-                style={{ color: t.text }}
-              >
-                What Can Our CRM Sales Do For You?
-              </h2>
-              <div className="space-y-6">
-                {features.map((f) => (
-                  <div key={f.title} className="flex gap-4">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: f.bg }}
-                    >
-                      {f.icon}
-                    </div>
-                    <div>
-                      <h4
-                        className="font-semibold mb-1"
-                        style={{ color: t.text }}
-                      >
-                        {f.title}
-                      </h4>
-                      <p className="text-sm" style={{ color: t.muted }}>
-                        {f.desc}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <a
-                href="#"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-medium mt-8 transition"
-                style={{ background: t.accent, color: "#000" }}
-              >
-                Learn More <ArrowRight className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── EMAIL ASSISTANCE ─── */
-function EmailAssistance() {
-  return (
-    <section className="py-24" style={{ background: t.surface }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* text */}
-          <div>
-            <span
-              className="inline-flex items-center gap-2 text-sm font-medium mb-3"
-              style={{ color: t.accent }}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: t.accent }}
-              />
-              AI EMAIL ASSISTANCE
-            </span>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-6"
-              style={{ color: t.text }}
-            >
-              Everything you need to{" "}
-              <span style={{ color: t.accent }}>stay on top of your inbox.</span>{" "}
-              <span style={{ color: t.subtle }}>Nothing you don't</span>
-            </h2>
-          </div>
-
-          {/* mock email */}
-          <div className="space-y-4">
-            <div
-              className="rounded-2xl p-6"
-              style={{
-                background: t.card,
-                border: `1px solid ${t.border}`,
-                boxShadow: `0 16px 48px -8px rgba(0,0,0,0.5)`,
-              }}
-            >
-              <div
-                className="flex items-center gap-2 text-xs mb-3"
-                style={{ color: "#4ade80" }}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> AI automatically
-                checked
-              </div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="font-semibold" style={{ color: t.text }}>
-                  New Message
-                </p>
-                <span
-                  className="text-xs rounded-full px-2.5 py-0.5"
-                  style={{ background: t.accentSoft, color: t.accent }}
-                >
-                  Drafted
-                </span>
-              </div>
-              <div className="text-sm space-y-1 mb-4" style={{ color: t.muted }}>
-                <p>
-                  <span style={{ color: t.subtle }}>To</span>&nbsp;&nbsp;
-                  marcuslee@gmail.com
-                </p>
-                <p>
-                  <span style={{ color: t.subtle }}>Sub</span>&nbsp;&nbsp;Re: Q4
-                  marketing plan
-                </p>
-              </div>
-              <div
-                className="rounded-xl p-4 text-sm leading-relaxed"
-                style={{
-                  background: t.surfaceAlt,
-                  color: t.muted,
-                  border: `1px solid ${t.borderSubtle}`,
-                }}
-              >
-                <p>Hi Sarah,</p>
-                <p className="mt-2">
-                  Thanks for sending this over. I've reviewed the numbers and
-                  agree with increasing the paid social allocation. This
-                  adjustment should help us reach a wider audience.
-                </p>
-                <p className="mt-2 underline" style={{ color: t.accent }}>
-                  Let's schedule a 30-minute sync this Thursday at 2 PM to
-                  finalize the details.
-                </p>
-              </div>
-            </div>
-
-            <div
-              className="rounded-xl p-4 flex items-center gap-3"
-              style={{ background: t.card, border: `1px solid ${t.border}` }}
-            >
-              <Calendar className="w-5 h-5" style={{ color: "#60a5fa" }} />
-              <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: t.text }}>
-                  Q4 Planning Meeting
-                </p>
-                <p className="text-xs" style={{ color: t.subtle }}>
-                  Thursday, 02:00 PM - 03:00 PM
-                </p>
-              </div>
-              <span
-                className="text-xs rounded-full px-2 py-0.5"
-                style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80" }}
-              >
-                Scheduled
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── ORDER FEATURES / STATS ─── */
-function OrderFeatures() {
-  const features = [
-    {
-      icon: <Copy className="w-5 h-5" />,
-      title: "Simply Copy & Paste",
-      desc: "Duplicate any configuration or template and make it your own in seconds.",
-      color: "#fbbf24",
-    },
-    {
-      icon: <Palette className="w-5 h-5" />,
-      title: "Easy To Customize",
-      desc: "Adjust layouts, colors, and content to match your brand with no code required.",
-      color: t.accent,
-    },
-    {
-      icon: <Code2 className="w-5 h-5" />,
-      title: "Made With TailwindCSS",
-      desc: "Built on utility-first CSS for lightning-fast load times and clean code.",
-      color: "#60a5fa",
-    },
-  ];
-
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-  const salesData = [35.19, 30.04, 40.12, 52.32, 38.19, 20.82, 16.93];
-  const insightData = [22, 25, 32, 28, 35, 18, 22];
-  const maxVal = 55;
-
-  return (
-    <section className="py-24" style={{ background: t.bg }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="mb-14">
-          <span
-            className="inline-flex items-center gap-2 text-sm mb-3"
-            style={{ color: t.subtle }}
-          >
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ background: t.accent }}
-            />
-            Order Features
-          </span>
-          <div className="grid md:grid-cols-2 gap-6">
-            <h2
-              className="text-3xl sm:text-4xl font-bold tracking-tight"
-              style={{ color: t.text }}
-            >
-              Vistore Helps You Build Beautiful Workflows
-            </h2>
-            <p className="md:pt-2" style={{ color: t.muted }}>
-              Providing customer service in one platform, our responsive
-              dashboard works on all devices, with a fully redesigned project
-              management experience.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-10 items-start">
-          <div className="space-y-8">
-            {features.map((f) => (
-              <div key={f.title} className="flex gap-4">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{
-                    background: `${f.color}15`,
-                    color: f.color,
-                  }}
-                >
-                  {f.icon}
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-1" style={{ color: t.text }}>
-                    {f.title}
-                  </h4>
-                  <p className="text-sm" style={{ color: t.muted }}>
-                    {f.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* chart */}
+      <div className="max-w-3xl mx-auto text-center px-6">
+        <Reveal>
           <div
-            className="rounded-2xl p-6"
-            style={{
-              background: t.card,
-              border: `1px solid ${t.border}`,
-              boxShadow: `0 16px 48px -8px rgba(0,0,0,0.4)`,
-            }}
+            className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full mb-8"
+            style={{ background: c.accentSoft, color: c.accent, border: `1px solid ${c.accentMid}` }}
           >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h4 className="font-semibold" style={{ color: t.text }}>
-                  Store Order Analysis
-                </h4>
-                <p className="text-xs" style={{ color: t.subtle }}>
-                  Your income and expense in last 30 days
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-xs" style={{ color: t.muted }}>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="w-2.5 h-2.5 rounded"
-                    style={{ background: t.accent }}
-                  />{" "}
-                  Sales
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="w-2.5 h-2.5 rounded"
-                    style={{ background: "#fbbf24" }}
-                  />{" "}
-                  Insight
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-end gap-3 h-48">
-              {months.map((m, i) => (
-                <div
-                  key={m}
-                  className="flex-1 flex flex-col items-center gap-1"
-                >
-                  <span
-                    className="text-[10px] font-medium"
-                    style={{ color: t.muted }}
-                  >
-                    ${salesData[i]}
-                  </span>
-                  <div
-                    className="w-full flex gap-0.5 items-end"
-                    style={{ height: "140px" }}
-                  >
-                    <div
-                      className="flex-1 rounded-t-md"
-                      style={{
-                        height: `${(salesData[i] / maxVal) * 100}%`,
-                        background: t.accent,
-                        opacity: 0.85,
-                      }}
-                    />
-                    <div
-                      className="flex-1 rounded-t-md"
-                      style={{
-                        height: `${(insightData[i] / maxVal) * 100}%`,
-                        background: "#fbbf24",
-                        opacity: 0.4,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="text-[10px] mt-1"
-                    style={{ color: t.subtle }}
-                  >
-                    {m}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <Radio className="w-3 h-3" /> Now in private beta
           </div>
-        </div>
+        </Reveal>
+
+        <Reveal delay={80}>
+          <h1
+            className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold leading-[1.1] tracking-tight mb-6"
+            style={{ color: c.text }}
+          >
+            Your inbox has context.
+            <br />
+            <span style={{ color: c.accent }}>Now your tools do too.</span>
+          </h1>
+        </Reveal>
+
+        <Reveal delay={160}>
+          <p
+            className="text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-10"
+            style={{ color: c.muted }}
+          >
+            Context Mode connects your Gmail and Calendar to an AI layer that reads,
+            classifies, searches, and briefs you — so you spend less time managing
+            email and more time acting on it.
+          </p>
+        </Reveal>
+
+        <Reveal delay={240}>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a
+              href="/login"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition text-sm"
+              style={{ background: c.accent, color: "#000" }}
+            >
+              Get Started Free <ArrowRight className="w-4 h-4" />
+            </a>
+            <a
+              href="#features"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition"
+              style={{ color: c.muted, border: `1px solid ${c.borderLight}` }}
+            >
+              See features <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+        </Reveal>
       </div>
+
+      {/* Abstract inbox mockup */}
+      <Reveal delay={350}>
+        <div className="max-w-5xl mx-auto px-6 mt-16">
+          <InboxMockup />
+        </div>
+      </Reveal>
     </section>
   );
 }
 
-/* ─── PRICING ─── */
-function Pricing() {
-  const plans = [
+/* ══════════════════════════════════════════════
+   LIVE INBOX MOCKUP
+   ══════════════════════════════════════════════ */
+function InboxMockup() {
+  const emails = [
     {
-      icon: <Star className="w-5 h-5" style={{ color: "#fbbf24" }} />,
-      name: "Starter",
-      desc: "Perfect for individuals who want to experience AI-enhanced email.",
-      price: "Free",
-      period: "",
-      highlighted: false,
-      badge: null,
-      prefix: "Benefits",
-      benefits: [
-        "AI summaries (limited per day)",
-        "Smart filters & categories",
-        "Email compose assistant",
-        "Basic AI recommendations",
-        "Calendar integration",
-      ],
+      from: "Sarah Chen",
+      subject: "Re: Q1 Pipeline Review — updated numbers",
+      preview: "Hey, I've attached the revised deck with the new pipeline figures. Can we sync before the board...",
+      time: "10:32 AM",
+      priority: "high",
+      sentiment: "neutral",
+      category: "Work",
+      catColor: c.blue,
     },
     {
-      icon: <Zap className="w-5 h-5" style={{ color: "#000" }} />,
-      name: "Pro",
-      desc: "For professionals who live in their inbox and want full control.",
-      price: "$12",
-      period: "/month",
-      highlighted: true,
-      badge: "BEST DEAL",
-      prefix: "Everything in Starter, plus:",
-      benefits: [
-        "Priority & follow-up suggestions",
-        "AI insights & reminders",
-        "Unlimited AI summaries",
-        "Priority inbox view",
-        "Smart reply templates",
-      ],
+      from: "Alex Rivera",
+      subject: "Urgent: Production deploy failing on staging",
+      preview: "The CI pipeline is throwing a segfault on the new migration. Blocking the 2.4.1 release. Need...",
+      time: "9:48 AM",
+      priority: "urgent",
+      sentiment: "negative",
+      category: "Engineering",
+      catColor: c.red,
     },
     {
-      icon: <Users className="w-5 h-5" style={{ color: "#a78bfa" }} />,
-      name: "Team",
-      desc: "For teams that want to collaborate, delegate, and scale with AI.",
-      price: "$29",
-      period: "/user/month",
-      highlighted: false,
-      badge: null,
-      prefix: "Everything in Pro, plus:",
-      benefits: [
-        "Shared inbox & roles",
-        "Team-level insights",
-        "Admin controls",
-        "Integration with Slack & Notion",
-        "Email delegation",
-      ],
+      from: "Nadia Okafor",
+      subject: "Meeting prep: Acme Corp renewal discussion",
+      preview: "I've pulled together the account history and renewal terms. A few risk flags to discuss before...",
+      time: "9:15 AM",
+      priority: "high",
+      sentiment: "positive",
+      category: "Clients",
+      catColor: c.green,
+    },
+    {
+      from: "David Kim",
+      subject: "FYI: New competitor pricing analysis",
+      preview: "Sharing the competitive landscape report. Interesting shift in their mid-market tier. Worth...",
+      time: "8:30 AM",
+      priority: "medium",
+      sentiment: "neutral",
+      category: "Strategy",
+      catColor: c.purple,
+    },
+    {
+      from: "Calendly",
+      subject: "New event: Design Review — Thu 2:00 PM",
+      preview: "A new event has been scheduled with Jordan Lee. Duration: 30 min. Agenda: Review updated...",
+      time: "Yesterday",
+      priority: "low",
+      sentiment: "neutral",
+      category: "Calendar",
+      catColor: c.yellow,
     },
   ];
 
-  return (
-    <section className="py-24" style={{ background: t.surface }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2
-            className="text-4xl sm:text-5xl font-bold tracking-tight mb-4"
-            style={{ color: t.text }}
-          >
-            Simple Pricing for a
-            <br />
-            Smarter Inbox
-          </h2>
-          <p style={{ color: t.muted }}>
-            No clutter. No confusion. Just plans that scale with you.
-          </p>
-        </div>
+  const priorityBadge = (p: string) => {
+    const map: Record<string, { bg: string; text: string; label: string }> = {
+      urgent: { bg: "rgba(248,113,113,0.12)", text: c.red, label: "Urgent" },
+      high: { bg: c.accentSoft, text: c.accent, label: "High" },
+      medium: { bg: "rgba(96,165,250,0.1)", text: c.blue, label: "Medium" },
+      low: { bg: `${c.subtle}20`, text: c.subtle, label: "Low" },
+    };
+    const s = map[p] || map.low;
+    return (
+      <span
+        className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+        style={{ background: s.bg, color: s.text }}
+      >
+        {s.label}
+      </span>
+    );
+  };
 
-        <div className="grid md:grid-cols-3 gap-5">
-          {plans.map((p) => (
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: c.surface,
+        border: `1px solid ${c.border}`,
+        boxShadow: `0 32px 80px -16px rgba(0,0,0,0.7), 0 0 0 1px ${c.border}`,
+      }}
+    >
+      {/* toolbar */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5 text-xs"
+        style={{ borderBottom: `1px solid ${c.border}` }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.red, opacity: 0.7 }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.yellow, opacity: 0.7 }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.green, opacity: 0.7 }} />
+          </div>
+          <span style={{ color: c.subtle }}>Inbox — Priority View</span>
+        </div>
+        <div className="flex items-center gap-2" style={{ color: c.subtle }}>
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 rounded"
+            style={{ background: c.card, border: `1px solid ${c.border}` }}
+          >
+            <Search className="w-3 h-3" />
+            <span className="hidden sm:inline">Search emails...</span>
+          </div>
+          <span style={{ color: c.accent }}>●</span>
+          <span>Synced</span>
+        </div>
+      </div>
+
+      {/* sidebar + list */}
+      <div className="flex">
+        {/* mini sidebar */}
+        <div
+          className="hidden md:flex flex-col items-center gap-3 py-4 px-3"
+          style={{ borderRight: `1px solid ${c.border}`, background: c.bg }}
+        >
+          {[Inbox, Star, Clock, Send, Tag, Columns3].map((Icon, i) => (
             <div
-              key={p.name}
-              className="rounded-2xl p-6 sm:p-8 flex flex-col"
+              key={i}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition"
               style={{
-                background: p.highlighted
-                  ? `linear-gradient(145deg, ${t.accent}, #d47d27)`
-                  : t.card,
-                border: `1px solid ${p.highlighted ? t.accent : t.border}`,
-                boxShadow: p.highlighted
-                  ? `0 16px 48px -8px ${t.accent}40`
-                  : "none",
+                background: i === 0 ? c.accentSoft : "transparent",
+                color: i === 0 ? c.accent : c.subtle,
               }}
             >
-              <div className="flex items-center gap-3 mb-2">
-                <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center"
-                  style={{
-                    background: p.highlighted ? "rgba(0,0,0,0.15)" : `${t.subtle}20`,
-                  }}
-                >
-                  {p.icon}
-                </div>
-                {p.badge && (
-                  <span
-                    className="text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full uppercase"
-                    style={{ background: "rgba(0,0,0,0.15)", color: "#000" }}
-                  >
-                    {p.badge}
-                  </span>
-                )}
-              </div>
-              <h3
-                className="text-xl font-bold mb-1"
-                style={{ color: p.highlighted ? "#000" : t.text }}
-              >
-                {p.name}
-              </h3>
-              <p
-                className="text-sm mb-5"
-                style={{ color: p.highlighted ? "rgba(0,0,0,0.6)" : t.muted }}
-              >
-                {p.desc}
-              </p>
-
-              <p
-                className="text-4xl font-bold mb-5"
-                style={{ color: p.highlighted ? "#000" : t.text }}
-              >
-                {p.price}
-                {p.period && (
-                  <span
-                    className="text-base font-normal"
-                    style={{
-                      color: p.highlighted ? "rgba(0,0,0,0.5)" : t.subtle,
-                    }}
-                  >
-                    {p.period}
-                  </span>
-                )}
-              </p>
-
-              <a
-                href="#"
-                className="block text-center rounded-xl py-3 font-medium mb-6 transition"
-                style={{
-                  background: p.highlighted ? "#000" : "transparent",
-                  color: p.highlighted ? t.accent : t.text,
-                  border: p.highlighted ? "none" : `1px solid ${t.border}`,
-                }}
-              >
-                Get Started
-              </a>
-
-              <p
-                className="text-xs font-medium mb-3"
-                style={{
-                  color: p.highlighted ? "rgba(0,0,0,0.5)" : t.subtle,
-                }}
-              >
-                {p.prefix}
-              </p>
-
-              <ul className="space-y-2.5">
-                {p.benefits.map((b) => (
-                  <li
-                    key={b}
-                    className="flex items-start gap-2 text-sm"
-                    style={{
-                      color: p.highlighted ? "rgba(0,0,0,0.75)" : t.muted,
-                    }}
-                  >
-                    <CheckCircle2
-                      className="w-4 h-4 shrink-0 mt-0.5"
-                      style={{
-                        color: p.highlighted ? "rgba(0,0,0,0.5)" : "#4ade80",
-                      }}
-                    />
-                    {b}
-                  </li>
-                ))}
-              </ul>
+              <Icon className="w-4 h-4" />
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-/* ─── FAQ ─── */
-function FAQ() {
-  const [openIdx, setOpenIdx] = useState(0);
-  const faqs = [
-    {
-      q: "How do I integrate CRM Sales with other tools?",
-      a: "We offer comprehensive guides, expert insights, and hands-on technical support to help you seamlessly integrate CRM Sales with your existing tools. Our goal is to simplify the process, enhance compatibility, and ensure you get the most out of your CRM system for improved productivity and business growth.",
-    },
-    {
-      q: "Is there a free trial available?",
-      a: "Yes! Our Starter plan is completely free and includes core AI features. You can upgrade to Pro or Team at any time to unlock the full suite of tools.",
-    },
-    {
-      q: "Is CRM Sales suitable for small businesses?",
-      a: "Absolutely. Vistore is designed to scale from solo founders to enterprise teams. Our Starter and Pro plans are perfect for small businesses looking to automate their sales workflow.",
-    },
-  ];
+        {/* email list */}
+        <div className="flex-1 min-w-0">
+          {emails.map((email, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 px-4 py-3 transition"
+              style={{
+                borderBottom: `1px solid ${c.border}`,
+                background: i === 0 ? c.accentSoft : "transparent",
+              }}
+            >
+              {/* avatar */}
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-semibold mt-0.5"
+                style={{
+                  background: `${email.catColor}18`,
+                  color: email.catColor,
+                }}
+              >
+                {email.from.split(" ").map(w => w[0]).join("")}
+              </div>
 
-  return (
-    <section className="py-24" style={{ background: t.bg }}>
-      <div className="max-w-3xl mx-auto px-6">
-        <div
-          className="rounded-3xl p-8 sm:p-12 mb-8"
-          style={{ background: t.surface, border: `1px solid ${t.border}` }}
-        >
-          <div className="text-center mb-10">
-            <span
-              className="inline-flex items-center gap-2 text-sm mb-3"
-              style={{ color: t.subtle }}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: t.accent }}
-              />
-              Our FAQs
-            </span>
-            <h2
-              className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
-              style={{ color: t.text }}
-            >
-              CRM Sales FAQs
-            </h2>
-            <p
-              className="text-sm max-w-md mx-auto"
-              style={{ color: t.muted }}
-            >
-              As a leading digital marketing agency, we are dedicated to
-              providing comprehensive educational resources and answering
-              frequently asked questions to help our clients.
-            </p>
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <a
-                href="#"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition"
-                style={{ background: t.accent, color: "#000" }}
-              >
-                More Questions <ArrowRight className="w-4 h-4" />
-              </a>
-              <a
-                href="#"
-                className="text-sm font-medium underline underline-offset-2"
-                style={{ color: t.text }}
-              >
-                Contact Us
-              </a>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[13px] font-medium truncate" style={{ color: c.text }}>
+                    {email.from}
+                  </span>
+                  {priorityBadge(email.priority)}
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded hidden sm:inline"
+                    style={{ background: `${email.catColor}12`, color: email.catColor }}
+                  >
+                    {email.category}
+                  </span>
+                </div>
+                <p className="text-[13px] truncate mb-0.5" style={{ color: c.muted }}>
+                  {email.subject}
+                </p>
+                <p className="text-xs truncate" style={{ color: c.subtle }}>
+                  {email.preview}
+                </p>
+              </div>
+
+              <span className="text-[11px] shrink-0 mt-1" style={{ color: c.subtle }}>
+                {email.time}
+              </span>
             </div>
+          ))}
+        </div>
+
+        {/* AI detail panel */}
+        <div
+          className="hidden lg:block w-72 p-4"
+          style={{ borderLeft: `1px solid ${c.border}`, background: c.bg }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Brain className="w-4 h-4" style={{ color: c.accent }} />
+            <span className="text-xs font-medium" style={{ color: c.text }}>
+              AI Analysis
+            </span>
           </div>
 
           <div className="space-y-3">
-            {faqs.map((f, i) => (
-              <div
-                key={i}
-                className="rounded-xl overflow-hidden"
-                style={{
-                  background: t.card,
-                  border: `1px solid ${openIdx === i ? t.accent + "40" : t.border}`,
-                }}
-              >
-                <button
-                  className="w-full flex items-center justify-between p-5 text-left font-semibold"
-                  style={{ color: t.text }}
-                  onClick={() => setOpenIdx(openIdx === i ? -1 : i)}
-                >
-                  {f.q}
-                  <ChevronDown
-                    className="w-5 h-5 shrink-0 transition-transform"
-                    style={{
-                      color: t.subtle,
-                      transform: openIdx === i ? "rotate(180deg)" : "none",
-                    }}
-                  />
-                </button>
-                {openIdx === i && (
-                  <div
-                    className="px-5 pb-5 text-sm leading-relaxed -mt-1"
-                    style={{ color: t.muted }}
-                  >
-                    {f.a}
-                  </div>
-                )}
+            {[
+              { label: "Summary", value: "Q1 pipeline deck updated with revised figures. Board sync requested.", icon: <FileText className="w-3 h-3" /> },
+              { label: "Action Items", value: "Review deck before Thursday. Confirm board meeting slot.", icon: <ListChecks className="w-3 h-3" /> },
+              { label: "Sentiment", value: "Neutral — Professional", icon: <Activity className="w-3 h-3" /> },
+              { label: "Priority", value: "High — Needs response today", icon: <AlertTriangle className="w-3 h-3" /> },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span style={{ color: c.subtle }}>{item.icon}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: c.subtle }}>
+                    {item.label}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: c.muted }}>
+                  {item.value}
+                </p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
-/* ─── CTA BANNER ─── */
-function CTABanner() {
-  return (
-    <section className="pb-24" style={{ background: t.bg }}>
-      <div className="max-w-5xl mx-auto px-6">
-        <div
-          className="relative overflow-hidden rounded-3xl text-center px-8 py-16"
-          style={{
-            background: `linear-gradient(145deg, ${t.accent}, #c2650f)`,
-          }}
-        >
-          <div className="absolute inset-0 opacity-10">
-            <div
-              className="absolute top-8 left-8 w-32 h-32 rounded-full"
-              style={{ border: "1px solid rgba(0,0,0,0.3)" }}
-            />
-            <div
-              className="absolute bottom-8 right-8 w-48 h-48 rounded-full"
-              style={{ border: "1px solid rgba(0,0,0,0.2)" }}
-            />
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4 relative" style={{ color: "#000" }}>
-            Experience a Smarter Inbox Today
-          </h2>
-          <p
-            className="max-w-md mx-auto mb-8 relative"
-            style={{ color: "rgba(0,0,0,0.6)" }}
-          >
-            Join the waitlist and be among the first to try Vistore — your new
-            favorite way to do email.
-          </p>
-          <a
-            href="#"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-medium transition relative"
-            style={{ background: "#000", color: t.accent }}
-          >
-            Get Started Free
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── FOOTER ─── */
-function Footer() {
-  return (
-    <footer style={{ background: t.surface, borderTop: `1px solid ${t.border}` }}>
-      <div className="max-w-6xl mx-auto px-6 pt-16 pb-8">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-          <div>
-            <h3
-              className="text-2xl font-bold mb-2"
-              style={{ color: t.text }}
-            >
-              Are You Interested With Vistore?
-            </h3>
-            <a
-              href="#"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium mt-4 transition"
-              style={{ background: t.accent, color: "#000" }}
-            >
-              Contact Sales <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-          {[
-            {
-              title: "Company",
-              links: ["Security", "Brand Guidelines", "Careers"],
-            },
-            { title: "Career", links: ["Jobs", "New", "Hiring"] },
-            {
-              title: "Legal Information",
-              links: ["Privacy Policy", "Terms of Service", "Cookies Policy"],
-            },
-          ].map((col) => (
-            <div key={col.title}>
-              <h4
-                className="font-semibold mb-4"
-                style={{ color: t.text }}
-              >
-                {col.title}
-              </h4>
-              <ul className="space-y-2.5 text-sm">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a
-                      href="#"
-                      className="transition"
-                      style={{ color: t.muted }}
-                    >
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${c.border}` }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <MessageSquare className="w-3 h-3" style={{ color: c.subtle }} />
+              <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: c.subtle }}>
+                Suggested Reply
+              </span>
             </div>
+            <div
+              className="rounded-lg p-2.5 text-xs leading-relaxed"
+              style={{ background: c.card, color: c.muted, border: `1px solid ${c.border}` }}
+            >
+              "Thanks Sarah — I'll review the deck this afternoon. Let's block 30m Thursday AM to align before the board meeting."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   PRIMARY FEATURES (3 big cards)
+   ══════════════════════════════════════════════ */
+function PrimaryFeatures() {
+  const features = [
+    {
+      icon: <Inbox className="w-5 h-5" />,
+      title: "AI Priority Inbox",
+      desc: "Every email is classified by urgency, sentiment, relationship type, and topic. Filter by time period. Emails that need action float to the top.",
+      accent: c.accent,
+    },
+    {
+      icon: <Brain className="w-5 h-5" />,
+      title: "Meeting Prep Briefs",
+      desc: "Before every meeting, hybrid RAG finds relevant threads per attendee and generates a briefing with talking points, open items, and risk flags.",
+      accent: c.blue,
+    },
+    {
+      icon: <Search className="w-5 h-5" />,
+      title: "AI Chat — Ask Your Inbox",
+      desc: "Natural language search across your entire email history. 3-layer hybrid search with structured filters, full-text, and semantic embeddings.",
+      accent: c.purple,
+    },
+  ];
+
+  return (
+    <section id="features" className="py-24 relative">
+      <DotGrid />
+      <div className="max-w-6xl mx-auto px-6">
+        <Reveal>
+          <div className="mb-14">
+            <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+              Core Features
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: c.text }}>
+              Intelligence at every layer
+            </h2>
+          </div>
+        </Reveal>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          {features.map((f, i) => (
+            <Reveal key={f.title} delay={i * 100}>
+              <div
+                className="rounded-xl p-6 h-full group transition-colors"
+                style={{ background: c.card, border: `1px solid ${c.border}` }}
+              >
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center mb-5"
+                  style={{ background: `${f.accent}12`, color: f.accent }}
+                >
+                  {f.icon}
+                </div>
+                <h3 className="font-semibold text-[15px] mb-2" style={{ color: c.text }}>
+                  {f.title}
+                </h3>
+                <p className="text-[13px] leading-relaxed" style={{ color: c.muted }}>
+                  {f.desc}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   FEATURE DEEP DIVES (alternating layout)
+   ══════════════════════════════════════════════ */
+function FeatureDeepDives() {
+  return (
+    <section id="how-it-works" className="py-24" style={{ background: c.surface }}>
+      <div className="max-w-6xl mx-auto px-6 space-y-32">
+
+        {/* Smart Email Details */}
+        <Reveal>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+                Smart Email Details
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4" style={{ color: c.text }}>
+                Every email, fully understood
+              </h3>
+              <p className="text-[15px] leading-relaxed mb-6" style={{ color: c.muted }}>
+                Click any email and get an AI analysis panel: summary, action items,
+                sentiment, relationship context, business intelligence, entities, and
+                a suggested response — all generated automatically on sync.
+              </p>
+              <div className="space-y-3">
+                {["Auto-generated summary & action items", "Sentiment & relationship scoring", "Entity extraction & business intel", "One-click suggested responses"].map((item) => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: c.accent }} />
+                    <span className="text-[13px]" style={{ color: c.muted }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Visual */}
+            <div
+              className="rounded-xl p-5"
+              style={{ background: c.card, border: `1px solid ${c.border}` }}
+            >
+              <div className="space-y-3">
+                {[
+                  { label: "SUMMARY", value: "Quarterly review deck ready for final sign-off. Two action items pending from legal.", icon: <FileText className="w-3.5 h-3.5" />, color: c.accent },
+                  { label: "ACTION ITEMS", value: "1. Review redlined contract §4.2\n2. Confirm pricing with finance by EOD Friday", icon: <ListChecks className="w-3.5 h-3.5" />, color: c.green },
+                  { label: "SENTIMENT", value: "Positive — collaborative tone, follow-up expected", icon: <Activity className="w-3.5 h-3.5" />, color: c.blue },
+                  { label: "ENTITIES", value: "Acme Corp · Q4 Contract · $240K ARR · Sarah Chen", icon: <Tag className="w-3.5 h-3.5" />, color: c.purple },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="rounded-lg p-3"
+                    style={{ background: c.bg, border: `1px solid ${c.border}` }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span style={{ color: row.color }}>{row.icon}</span>
+                      <span className="text-[10px] font-medium tracking-wider" style={{ color: c.subtle }}>
+                        {row.label}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: c.muted }}>
+                      {row.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* AI Email Assistant */}
+        <Reveal>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Visual */}
+            <div
+              className="rounded-xl p-5 order-2 md:order-1"
+              style={{ background: c.card, border: `1px solid ${c.border}` }}
+            >
+              <div className="space-y-3">
+                {/* Chat messages */}
+                <div className="flex gap-2.5">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5" style={{ background: c.accentSoft, color: c.accent }}>
+                    <span className="text-[10px] font-bold">G</span>
+                  </div>
+                  <div className="rounded-lg px-3 py-2 text-xs" style={{ background: c.bg, color: c.muted, border: `1px solid ${c.border}` }}>
+                    What were the key pricing points discussed with Acme in the last 3 months?
+                  </div>
+                </div>
+                <div className="flex gap-2.5">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5" style={{ background: c.accentMid }}>
+                    <Sparkles className="w-3 h-3" style={{ color: c.accent }} />
+                  </div>
+                  <div className="rounded-lg px-3 py-2 text-xs leading-relaxed" style={{ background: c.bg, color: c.muted, border: `1px solid ${c.border}` }}>
+                    Based on 14 threads found between Jan–Mar 2025:<br /><br />
+                    <span style={{ color: c.text }}>• $240K ARR</span> — proposed in Jan, countered at $210K<br />
+                    <span style={{ color: c.text }}>• 3-year term</span> — agreed on in Feb thread with Sarah<br />
+                    <span style={{ color: c.text }}>• Implementation fee</span> — still open, last discussed Mar 2<br /><br />
+                    <span style={{ color: c.subtle }}>Sources: 3 threads cited</span>
+                  </div>
+                </div>
+                <div
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+                  style={{ background: c.bg, border: `1px solid ${c.border}` }}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" style={{ color: c.subtle }} />
+                  <span className="text-xs" style={{ color: c.subtle }}>Ask a follow-up question...</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="order-1 md:order-2">
+              <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+                AI Email Assistant
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4" style={{ color: c.text }}>
+                Chat with your inbox
+              </h3>
+              <p className="text-[15px] leading-relaxed mb-6" style={{ color: c.muted }}>
+                Ask follow-up questions about any email, get context from related
+                threads, draft replies. A conversational interface right on the email
+                detail page — backed by your full email history.
+              </p>
+              <div className="space-y-3">
+                {["Natural language queries across all mail", "3-layer hybrid search: filters + full-text + semantic", "AI answers with source thread citations", "Draft replies with full conversation context"].map((item) => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: c.accent }} />
+                    <span className="text-[13px]" style={{ color: c.muted }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Meeting Prep + Kanban */}
+        <Reveal>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+                Meeting Prep Briefs
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4" style={{ color: c.text }}>
+                Walk in prepared, every time
+              </h3>
+              <p className="text-[15px] leading-relaxed mb-6" style={{ color: c.muted }}>
+                Before every meeting, Context Mode searches your email history using
+                hybrid RAG — semantic and keyword — finds relevant threads per attendee,
+                and generates a briefing with talking points, open items, risk flags,
+                and a suggested approach.
+              </p>
+            </div>
+            {/* Meeting brief mockup */}
+            <div
+              className="rounded-xl p-5"
+              style={{ background: c.card, border: `1px solid ${c.border}` }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="w-4 h-4" style={{ color: c.blue }} />
+                <span className="text-[13px] font-medium" style={{ color: c.text }}>
+                  Acme Corp — Renewal Discussion
+                </span>
+                <span className="text-[11px] ml-auto" style={{ color: c.subtle }}>
+                  Today, 2:00 PM
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-lg p-3" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <span className="text-[10px] font-medium tracking-wider block mb-1.5" style={{ color: c.green }}>
+                    TALKING POINTS
+                  </span>
+                  <ul className="text-xs space-y-1" style={{ color: c.muted }}>
+                    <li>• Renewal pricing: last offer at $240K/yr</li>
+                    <li>• Implementation timeline concern raised in Feb</li>
+                    <li>• Champion (Sarah) promoted — confirm new stakeholder</li>
+                  </ul>
+                </div>
+                <div className="rounded-lg p-3" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <span className="text-[10px] font-medium tracking-wider block mb-1.5" style={{ color: c.yellow }}>
+                    RISK FLAGS
+                  </span>
+                  <ul className="text-xs space-y-1" style={{ color: c.muted }}>
+                    <li>• Competitor eval mentioned in thread from Mar 5</li>
+                    <li>• Legal review still pending on §4.2 redlines</li>
+                  </ul>
+                </div>
+                <div className="rounded-lg p-3" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <span className="text-[10px] font-medium tracking-wider block mb-1.5" style={{ color: c.accent }}>
+                    SUGGESTED APPROACH
+                  </span>
+                  <p className="text-xs" style={{ color: c.muted }}>
+                    Lead with the expanded support package to counter the competitor eval.
+                    Address legal redlines early — offer a concession on §4.2 to move timeline forward.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   FEATURE GRID (remaining 6 features)
+   ══════════════════════════════════════════════ */
+function FeatureGrid() {
+  const features = [
+    {
+      icon: <Columns3 className="w-4.5 h-4.5" />,
+      title: "Kanban Board",
+      desc: "Drag emails through stages: New → In Progress → Waiting → Done → Archived. Visual workflow for email task management.",
+      color: c.accent,
+    },
+    {
+      icon: <Tag className="w-4.5 h-4.5" />,
+      title: "Categories & Labels",
+      desc: "Custom categories with color coding and nested subcategories. Organize emails your way — beyond what Gmail labels offer.",
+      color: c.green,
+    },
+    {
+      icon: <Calendar className="w-4.5 h-4.5" />,
+      title: "Calendar Integration",
+      desc: "View events, check availability, create meetings with AI descriptions, send invitations with ICS attachments — all from inside the workspace.",
+      color: c.blue,
+    },
+    {
+      icon: <Bell className="w-4.5 h-4.5" />,
+      title: "Priority Contacts + Telegram",
+      desc: "Mark important contacts. When they email you, get an instant Telegram notification with sender, subject, and preview.",
+      color: c.yellow,
+    },
+    {
+      icon: <ListChecks className="w-4.5 h-4.5" />,
+      title: "Tasks & Deadlines",
+      desc: "AI extracts action items and deadlines from emails automatically. See everything due today, this week, and overdue in one view.",
+      color: c.purple,
+    },
+    {
+      icon: <Contact className="w-4.5 h-4.5" />,
+      title: "Contact Intelligence",
+      desc: "Interaction history, email frequency, relationship score, and AI-generated briefs for every contact you communicate with.",
+      color: c.red,
+    },
+  ];
+
+  return (
+    <section className="py-24 relative">
+      <DotGrid />
+      <div className="max-w-6xl mx-auto px-6">
+        <Reveal>
+          <div className="text-center mb-14">
+            <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+              And More
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: c.text }}>
+              Everything you need to own your inbox
+            </h2>
+          </div>
+        </Reveal>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((f, i) => (
+            <Reveal key={f.title} delay={i * 80}>
+              <div
+                className="rounded-xl p-5 h-full"
+                style={{ background: c.card, border: `1px solid ${c.border}` }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
+                  style={{ background: `${f.color}12`, color: f.color }}
+                >
+                  {f.icon}
+                </div>
+                <h4 className="font-semibold text-[14px] mb-1.5" style={{ color: c.text }}>
+                  {f.title}
+                </h4>
+                <p className="text-[13px] leading-relaxed" style={{ color: c.muted }}>
+                  {f.desc}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   REAL-TIME SYNC CALLOUT
+   ══════════════════════════════════════════════ */
+function SyncCallout() {
+  return (
+    <section className="py-16" style={{ background: c.surface }}>
+      <div className="max-w-4xl mx-auto px-6">
+        <Reveal>
+          <div
+            className="rounded-xl p-8 flex flex-col md:flex-row items-start md:items-center gap-6"
+            style={{ background: c.card, border: `1px solid ${c.border}` }}
+          >
+            <div
+              className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: c.accentSoft, color: c.accent }}
+            >
+              <Radio className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-[15px] mb-1" style={{ color: c.text }}>
+                Real-Time Sync
+              </h3>
+              <p className="text-[13px] leading-relaxed" style={{ color: c.muted }}>
+                Emails arrive via Gmail push notifications (Pub/Sub webhooks). New mail is
+                ingested, classified by AI, embedded for search, and available in your inbox
+                within seconds — not minutes.
+              </p>
+            </div>
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
+              style={{ background: `${c.green}12`, color: c.green }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.green }} />
+              Live
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   SECURITY & TECH
+   ══════════════════════════════════════════════ */
+function Security() {
+  const items = [
+    {
+      icon: <Shield className="w-4.5 h-4.5" />,
+      title: "Multi-tenant isolation",
+      desc: "Your data is completely isolated from every other user at the database level.",
+    },
+    {
+      icon: <Lock className="w-4.5 h-4.5" />,
+      title: "AES-256-GCM encryption",
+      desc: "All sessions encrypted with AES-256-GCM. Tokens never stored in plain text.",
+    },
+    {
+      icon: <Eye className="w-4.5 h-4.5" />,
+      title: "Your data only",
+      desc: "All AI processing happens on your data only — nothing is shared between users or used for training.",
+    },
+    {
+      icon: <Server className="w-4.5 h-4.5" />,
+      title: "Self-hostable",
+      desc: "Deploy on your own infrastructure. Next.js 15, PostgreSQL + pgvector, Drizzle ORM.",
+    },
+  ];
+
+  return (
+    <section id="security" className="py-24 relative">
+      <DotGrid />
+      <div className="max-w-6xl mx-auto px-6">
+        <Reveal>
+          <div className="text-center mb-14">
+            <span className="text-xs font-medium uppercase tracking-widest mb-3 block" style={{ color: c.accent }}>
+              Trust & Security
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4" style={{ color: c.text }}>
+              Built for privacy from day one
+            </h2>
+            <p className="max-w-xl mx-auto text-[15px]" style={{ color: c.muted }}>
+              No shared models. No data leaks. Your email stays yours.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="grid sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
+          {items.map((item, i) => (
+            <Reveal key={item.title} delay={i * 80}>
+              <div
+                className="rounded-xl p-5 h-full"
+                style={{ background: c.card, border: `1px solid ${c.border}` }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: c.accentSoft, color: c.accent }}
+                  >
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-[14px] mb-1" style={{ color: c.text }}>
+                      {item.title}
+                    </h4>
+                    <p className="text-[13px] leading-relaxed" style={{ color: c.muted }}>
+                      {item.desc}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
           ))}
         </div>
 
-        <div
-          className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-          style={{ borderTop: `1px solid ${t.border}` }}
-        >
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6" style={{ color: t.accent }} />
-            <span
-              className="text-lg font-bold"
-              style={{ color: t.text }}
-            >
-              Vistore.
-            </span>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-1 text-sm">
-            {["Home", "About Us", "Products", "Reviews"].map((l) => (
-              <a
-                key={l}
-                href="#"
-                className="px-3 py-1 rounded-full"
-                style={{
-                  color: l === "Home" ? t.accent : t.muted,
-                  border:
-                    l === "Home" ? `1px solid ${t.accent}40` : "1px solid transparent",
-                }}
+        {/* tech stack pills */}
+        <Reveal delay={350}>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-10">
+            {["Next.js 15", "PostgreSQL", "pgvector", "Drizzle ORM", "Gmail API", "Pub/Sub Webhooks", "OpenAI Embeddings"].map((tech) => (
+              <span
+                key={tech}
+                className="text-[11px] font-medium px-3 py-1.5 rounded-lg"
+                style={{ background: c.card, color: c.subtle, border: `1px solid ${c.border}` }}
               >
-                {l}
-              </a>
+                {tech}
+              </span>
             ))}
           </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
 
-          <div className="flex items-center gap-3">
-            {[Factory, Inspect, TowelRackIcon, Library].map((Icon, i) => (
-              <a
-                key={i}
-                href="#"
-                className="w-9 h-9 rounded-full flex items-center justify-center transition"
-                style={{
-                  border: `1px solid ${t.border}`,
-                  color: t.muted,
-                }}
+/* ══════════════════════════════════════════════
+   CTA
+   ══════════════════════════════════════════════ */
+function CTA() {
+  return (
+    <section className="py-24" style={{ background: c.surface }}>
+      <div className="max-w-3xl mx-auto px-6 text-center">
+        <Reveal>
+          <div
+            className="rounded-xl p-10 sm:p-14 relative overflow-hidden"
+            style={{ background: c.card, border: `1px solid ${c.border}` }}
+          >
+            {/* subtle glow */}
+            <div
+              className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] blur-[100px] -z-0"
+              style={{ background: c.accentSoft }}
+            />
+            <div className="relative z-10">
+              <h2
+                className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
+                style={{ color: c.text }}
               >
-                <Icon className="w-4 h-4" />
+                Your inbox is waiting
+              </h2>
+              <p className="text-[15px] mb-8 max-w-md mx-auto" style={{ color: c.muted }}>
+                Stop triaging manually. Let AI handle the context so you can
+                focus on the decisions that matter.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition text-sm"
+                style={{ background: c.accent, color: "#000" }}
+              >
+                Get Started Free <ArrowRight className="w-4 h-4" />
               </a>
-            ))}
+            </div>
           </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   FOOTER
+   ══════════════════════════════════════════════ */
+function Footer() {
+  return (
+    <footer style={{ borderTop: `1px solid ${c.border}` }}>
+      <div
+        className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4"
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className="w-5 h-5 rounded flex items-center justify-center"
+            style={{ background: c.accent }}
+          >
+            <Mail className="w-3 h-3" style={{ color: "#000" }} />
+          </div>
+          <span className="text-sm font-medium" style={{ color: c.text }}>
+            Context Mode
+          </span>
         </div>
 
-        <div
-          className="flex flex-col sm:flex-row items-center justify-between text-xs mt-6 gap-2"
-          style={{ color: t.subtle }}
-        >
-          <p>&copy; Vistore by Sans Brothers</p>
-          <div className="flex gap-4">
-            <a href="#" className="transition hover:opacity-80">
-              Terms &amp; Conditions
-            </a>
-            <a href="#" className="transition hover:opacity-80">
-              Privacy Policy
-            </a>
-          </div>
+        <div className="flex items-center gap-6 text-[13px]" style={{ color: c.subtle }}>
+          <a href="https://thumbnix.com" className="hover:text-white transition flex items-center gap-1">
+            Built by Gautam <ArrowUpRight className="w-3 h-3" />
+          </a>
+          <a href="/login" className="hover:text-white transition">
+            Sign in
+          </a>
         </div>
       </div>
     </footer>
   );
 }
 
-/* ─── PAGE ─── */
+/* ══════════════════════════════════════════════
+   PAGE
+   ══════════════════════════════════════════════ */
 export default function LandingPage() {
   return (
     <main
       className="min-h-screen antialiased"
-      style={{ background: t.bg, color: t.text }}
+      style={{ background: c.bg, color: c.text, fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
-      <Navbar />
+      <Nav />
       <Hero />
-      <AIToolsGrid />
-      <IntelligenceFeatures />
-      <Testimonials />
-      <KeyFeatures />
-      <EmailAssistance />
-      <OrderFeatures />
-      <Pricing />
-      <FAQ />
-      <CTABanner />
+      <PrimaryFeatures />
+      <FeatureDeepDives />
+      <FeatureGrid />
+      <SyncCallout />
+      <Security />
+      <CTA />
       <Footer />
     </main>
   );
