@@ -287,6 +287,7 @@ function registerManualCorsairTools(): void {
 // ---------------------------------------------------------------------------
 
 function registerCustomTools(): void {
+  // --- search_inbox: AI-powered email search ---
   _allOpenAITools.push({
     type: 'function',
     function: {
@@ -312,6 +313,132 @@ function registerCustomTools(): void {
     };
   });
 
+  // --- search_assets: find files, documents, and links from emails ---
+  _allOpenAITools.push({
+    type: 'function',
+    function: {
+      name: 'search_assets',
+      description: [
+        'Search files, documents, and links extracted from the user\'s emails.',
+        'Use this when the user asks about attachments, PDFs, images, spreadsheets, shared links, Google Drive files, or any file/document from their email.',
+        'Examples: "find the invoice from Acme", "show me all PDFs from last month", "what files did Sarah send?", "find the Google Drive link for the Q3 report".',
+      ].join(' '),
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search text to match filenames, URLs, or email subjects. Use specific terms like the filename, sender name, or topic.',
+          },
+          category: {
+            type: 'string',
+            enum: ['pdf', 'image', 'document', 'spreadsheet', 'presentation', 'archive', 'video', 'audio', 'code', 'other'],
+            description: 'Filter by file type category. Only set this when the user explicitly mentions a file type.',
+          },
+          from: {
+            type: 'string',
+            description: 'Filter by sender email address. Use when the user says "from [person]" or "that [person] sent".',
+          },
+          asset_type: {
+            type: 'string',
+            enum: ['attachment', 'link'],
+            description: 'Filter by attachment (files attached to emails) or link (URLs shared in email body). Only set when explicitly relevant.',
+          },
+          domain: {
+            type: 'string',
+            description: 'Filter links by domain (e.g. "drive.google.com", "figma.com", "notion.so"). Use when the user mentions a specific service.',
+          },
+          days_back: {
+            type: 'number',
+            description: 'How many days back to search. Default is all time. Use 7 for "this week", 30 for "this month", 90 for "this quarter".',
+          },
+        },
+        required: [],
+      },
+    },
+  });
+  executorMap.set('search_assets', async (args, tenantId) => {
+    const { getAssets } = await import('@/lib/v1/assets');
+    const { getMimeCategory } = await import('@/lib/v1/assets/types');
+
+    // Build filters from agent args
+    const filters: Record<string, unknown> = {
+      limit: 10,
+      offset: 0,
+    };
+
+    if (args.query && typeof args.query === 'string' && args.query.trim()) {
+      filters.search = args.query.trim();
+    }
+
+    if (args.category && typeof args.category === 'string') {
+      filters.mimeCategory = args.category;
+    }
+
+    if (args.from && typeof args.from === 'string') {
+      filters.fromEmail = args.from.trim();
+    }
+
+    if (args.asset_type && typeof args.asset_type === 'string') {
+      filters.assetType = args.asset_type;
+    }
+
+    if (args.domain && typeof args.domain === 'string') {
+      filters.domain = args.domain.trim().toLowerCase();
+    }
+
+    // Date range
+    if (args.days_back && typeof args.days_back === 'number' && args.days_back > 0) {
+      const from = new Date();
+      from.setDate(from.getDate() - args.days_back);
+      filters.dateFrom = from.toISOString();
+    }
+
+    try {
+      const result = await getAssets(tenantId, filters as any);
+
+      if (result.assets.length === 0) {
+        return {
+          success: true,
+          data: {
+            message: 'No assets found matching your search.',
+            assetCount: 0,
+            assets: [],
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          assetCount: result.total,
+          showing: result.assets.length,
+          assets: result.assets.map((a) => ({
+            id: a.id,
+            emailId: a.emailId,
+            type: a.assetType,
+            filename: a.filename,
+            url: a.url,
+            mimeCategory: a.mimeCategory,
+            size: a.size,
+            domain: a.domain,
+            fromEmail: a.fromEmail,
+            fromName: a.fromName,
+            subject: a.subject,
+            receivedAt: a.receivedAt,
+          })),
+        },
+      };
+    } catch (err) {
+      return {
+        success: false,
+        data: null,
+        error: err instanceof Error ? err.message : 'Asset search failed',
+      };
+    }
+  });
+
+  // --- reply_to_email: reply to current email thread ---
   _allOpenAITools.push({
     type: 'function',
     function: {

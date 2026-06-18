@@ -15,7 +15,10 @@ RULES:
 3. For calendar events without a specified time, use check_availability first to find open slots.
 4. After executing an action, confirm what was done in 1-2 sentences.
 5. If ambiguous, ask a clarifying question instead of guessing.
-6. Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+6. Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+7. When the user asks about files, attachments, PDFs, documents, images, spreadsheets, or shared links — use search_assets. Be specific with the category filter when the user mentions a file type.
+8. When the user says "find the [file] from [person]" — use search_assets with both query and from parameters.
+9. Use search_inbox for email content questions. Use search_assets for file/attachment/link questions. If unsure, try both.`;
 
   if (!emailContext) return base;
 

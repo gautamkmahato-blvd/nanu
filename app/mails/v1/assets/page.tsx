@@ -1,13 +1,16 @@
 // app/mails/v1/assets/page.tsx
+// Assets page — shows files and documents from emails.
+// Links are stored in DB for RAG search but hidden from the UI.
+// Images show a live preview thumbnail via the proxy endpoint.
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Image, FileSpreadsheet, Presentation, Archive, Film, Music,
-  Code2, File, Link2, Search, Grid3X3, List, Loader2, Download,
-  ExternalLink, ChevronLeft, ChevronRight, Filter, X, Paperclip,
-  RefreshCw,
+  Code2, File, Search, Grid3X3, List, Loader2,
+  ChevronLeft, ChevronRight, Filter, X, Paperclip,
+  RefreshCw, Eye,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -15,12 +18,11 @@ import {
 // ---------------------------------------------------------------------------
 
 type MimeCategory = 'pdf' | 'image' | 'document' | 'spreadsheet' | 'presentation' | 'archive' | 'video' | 'audio' | 'code' | 'other';
-type AssetType = 'attachment' | 'link' | 'inline_image';
 
 type Asset = {
   id: string;
   emailId: string;
-  assetType: AssetType;
+  assetType: 'attachment' | 'link' | 'inline_image';
   filename: string | null;
   url: string | null;
   mimeType: string | null;
@@ -46,16 +48,18 @@ type FilterOptions = {
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   pdf: { icon: FileText, label: 'PDF', color: '#ef4444' },
   image: { icon: Image, label: 'Images', color: '#3b82f6' },
-  document: { icon: FileText, label: 'Documents', color: '#6366f1' },
-  spreadsheet: { icon: FileSpreadsheet, label: 'Spreadsheets', color: '#22c55e' },
-  presentation: { icon: Presentation, label: 'Presentations', color: '#f59e0b' },
+  document: { icon: FileText, label: 'Docs', color: '#6366f1' },
+  spreadsheet: { icon: FileSpreadsheet, label: 'Sheets', color: '#22c55e' },
+  presentation: { icon: Presentation, label: 'Slides', color: '#f59e0b' },
   archive: { icon: Archive, label: 'Archives', color: '#8b5cf6' },
   video: { icon: Film, label: 'Videos', color: '#ec4899' },
   audio: { icon: Music, label: 'Audio', color: '#06b6d4' },
   code: { icon: Code2, label: 'Code', color: '#a3e635' },
-  link: { icon: Link2, label: 'Links', color: '#f97316' },
   other: { icon: File, label: 'Other', color: '#6b7280' },
 };
+
+// Categories to show as filter pills (in order)
+const FILTER_CATEGORIES = ['pdf', 'image', 'document', 'spreadsheet', 'presentation', 'archive', 'video', 'audio', 'code', 'other'];
 
 const PAGE_SIZE = 48;
 
@@ -80,24 +84,8 @@ function displayName(name: string | null, email: string): string {
   return at > 0 ? email.slice(0, at) : email;
 }
 
-function getAssetIcon(asset: Asset): { icon: React.ElementType; color: string } {
-  if (asset.assetType === 'link') return CATEGORY_CONFIG.link;
-  const cat = CATEGORY_CONFIG[asset.mimeCategory];
-  return cat ?? CATEGORY_CONFIG.other;
-}
-
-function getDisplayName(asset: Asset): string {
-  if (asset.filename) return asset.filename;
-  if (asset.url) {
-    try {
-      const u = new URL(asset.url);
-      const path = u.pathname.split('/').filter(Boolean).pop();
-      return path ? decodeURIComponent(path) : u.hostname;
-    } catch {
-      return asset.url.slice(0, 40);
-    }
-  }
-  return 'Untitled';
+function isImageAsset(asset: Asset): boolean {
+  return asset.mimeCategory === 'image' || asset.assetType === 'inline_image';
 }
 
 // ---------------------------------------------------------------------------
@@ -118,13 +106,11 @@ export default function AssetsPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [activeType, setActiveType] = useState<AssetType | null>(null);
   const [activeSender, setActiveSender] = useState<string | null>(null);
-  const [activeDomain, setActiveDomain] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch assets
+  // Fetch assets — always exclude links from UI, only show attachments
   const loadAssets = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -132,12 +118,11 @@ export default function AssetsPage() {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(page * PAGE_SIZE));
+      // Exclude links — only show file attachments and inline images
+      params.set('type', 'attachment');
       if (search) params.set('q', search);
-      if (activeCategory && activeCategory !== 'link') params.set('category', activeCategory);
-      if (activeCategory === 'link') params.set('type', 'link');
-      if (activeType && activeCategory !== 'link') params.set('type', activeType);
+      if (activeCategory) params.set('category', activeCategory);
       if (activeSender) params.set('from', activeSender);
-      if (activeDomain) params.set('domain', activeDomain);
 
       const res = await fetch(`/api/v1/assets?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load assets');
@@ -151,7 +136,7 @@ export default function AssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, activeCategory, activeType, activeSender, activeDomain]);
+  }, [page, search, activeCategory, activeSender]);
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
 
@@ -168,8 +153,6 @@ export default function AssetsPage() {
     try {
       const res = await fetch('/api/v1/assets', { method: 'POST' });
       if (!res.ok) throw new Error('Backfill failed');
-      const data = await res.json();
-      console.log('[assets] backfill result:', data);
       loadAssets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Backfill failed');
@@ -181,16 +164,22 @@ export default function AssetsPage() {
   // Clear all filters
   const clearFilters = () => {
     setActiveCategory(null);
-    setActiveType(null);
     setActiveSender(null);
-    setActiveDomain(null);
     setSearchInput('');
     setSearch('');
     setPage(0);
   };
 
-  const hasActiveFilters = activeCategory || activeType || activeSender || activeDomain || search;
+  const hasActiveFilters = activeCategory || activeSender || search;
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // Build category pill data from server filter options (only non-link categories)
+  const categoryPills = FILTER_CATEGORIES
+    .map((cat) => {
+      const serverCat = filters?.mimeCategories.find((m) => m.category === cat);
+      return serverCat ? { key: cat, count: serverCat.count } : null;
+    })
+    .filter((c): c is { key: string; count: number } => c !== null && c.count > 0);
 
   return (
     <div className="bg-mail-bg h-full overflow-y-auto text-mail-text font-sans">
@@ -203,26 +192,24 @@ export default function AssetsPage() {
               <h1 className="text-lg font-semibold m-0">Assets</h1>
               {total > 0 && (
                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-mail-accent-soft text-mail-accent">
-                  {total} total
+                  {total} files
                 </span>
               )}
             </div>
-            <p className="text-xs text-mail-subtle mt-1 m-0">Files, documents, and links from your emails</p>
+            <p className="text-xs text-mail-subtle mt-1 m-0">Files and documents from your emails</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBackfill}
-              disabled={backfilling}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-xs cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={12} className={backfilling ? 'animate-spin' : ''} />
-              {backfilling ? 'Extracting...' : 'Extract Assets'}
-            </button>
-          </div>
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-xs cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={backfilling ? 'animate-spin' : ''} />
+            {backfilling ? 'Extracting...' : 'Extract Assets'}
+          </button>
         </div>
 
         {/* Category pills */}
-        {filters?.mimeCategories && filters.mimeCategories.length > 0 && (
+        {categoryPills.length > 0 && (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => { setActiveCategory(null); setPage(0); }}
@@ -232,14 +219,14 @@ export default function AssetsPage() {
             >
               All
             </button>
-            {filters.mimeCategories.map(({ category, count }) => {
-              const conf = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG.other;
+            {categoryPills.map(({ key, count }) => {
+              const conf = CATEGORY_CONFIG[key] ?? CATEGORY_CONFIG.other;
               const Icon = conf.icon;
-              const isActive = activeCategory === category;
+              const isActive = activeCategory === key;
               return (
                 <button
-                  key={category}
-                  onClick={() => { setActiveCategory(isActive ? null : category); setPage(0); }}
+                  key={key}
+                  onClick={() => { setActiveCategory(isActive ? null : key); setPage(0); }}
                   className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                     isActive ? 'text-white' : 'bg-mail-surface text-mail-muted hover:bg-mail-hover border border-mail-border'
                   }`}
@@ -262,7 +249,7 @@ export default function AssetsPage() {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search files, links, subjects..."
+            placeholder="Search by filename, subject, sender..."
             className="w-full pl-8 pr-3 py-2 rounded-lg border border-mail-border bg-mail-surface text-mail-text text-xs outline-none focus:border-mail-accent transition-colors placeholder:text-mail-subtle"
           />
         </div>
@@ -322,40 +309,6 @@ export default function AssetsPage() {
               </select>
             </div>
           )}
-
-          {/* Domain filter */}
-          {filters.domains.length > 0 && (
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-mail-subtle mb-1.5">Domain</div>
-              <select
-                value={activeDomain ?? ''}
-                onChange={(e) => { setActiveDomain(e.target.value || null); setPage(0); }}
-                className="px-2 py-1.5 rounded-md border border-mail-border bg-mail-surface text-mail-text text-xs outline-none cursor-pointer"
-              >
-                <option value="">All domains</option>
-                {filters.domains.map((d) => (
-                  <option key={d.domain} value={d.domain}>
-                    {d.domain} ({d.count})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Asset type filter */}
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-mail-subtle mb-1.5">Type</div>
-            <select
-              value={activeType ?? ''}
-              onChange={(e) => { setActiveType((e.target.value || null) as AssetType | null); setPage(0); }}
-              className="px-2 py-1.5 rounded-md border border-mail-border bg-mail-surface text-mail-text text-xs outline-none cursor-pointer"
-            >
-              <option value="">All types</option>
-              <option value="attachment">Attachments</option>
-              <option value="link">Links</option>
-              <option value="inline_image">Inline Images</option>
-            </select>
-          </div>
         </div>
       )}
 
@@ -381,12 +334,12 @@ export default function AssetsPage() {
           <div className="text-center py-16 flex flex-col items-center gap-3">
             <Paperclip size={36} strokeWidth={1} className="text-mail-subtle opacity-30" />
             <div className="text-base font-medium text-mail-text">
-              {hasActiveFilters ? 'No assets match your filters' : 'No assets found'}
+              {hasActiveFilters ? 'No files match your filters' : 'No files found'}
             </div>
             <div className="text-[13px] text-mail-subtle">
               {hasActiveFilters
                 ? 'Try adjusting your filters or search query'
-                : 'Click "Extract Assets" to scan your synced emails for files and links'}
+                : 'Click "Extract Assets" to scan your synced emails for files and documents'}
             </div>
             {hasActiveFilters && (
               <button
@@ -450,72 +403,110 @@ export default function AssetsPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Grid Card
+// Grid Card — with image preview for image assets
 // ---------------------------------------------------------------------------
 
 function AssetGridCard({ asset, router }: { asset: Asset; router: ReturnType<typeof useRouter> }) {
-  const { icon: Icon, color } = getAssetIcon(asset);
-  const name = getDisplayName(asset);
+  const conf = CATEGORY_CONFIG[asset.mimeCategory] ?? CATEGORY_CONFIG.other;
+  const Icon = conf.icon;
+  const name = asset.filename || 'Untitled';
+  const showPreview = isImageAsset(asset);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <div
       onClick={() => router.push(`/mails/v1/ai-email-details/${asset.emailId}`)}
-      className="rounded-lg border border-mail-border bg-mail-surface p-3 cursor-pointer hover:border-mail-accent/40 transition-colors group"
+      className="rounded-lg border border-mail-border bg-mail-surface overflow-hidden cursor-pointer hover:border-mail-accent/40 transition-colors group"
     >
-      {/* Icon */}
-      <div
-        className="w-10 h-10 rounded-lg flex items-center justify-center mb-2.5"
-        style={{ background: `${color}15` }}
-      >
-        <Icon size={18} style={{ color }} />
-      </div>
-
-      {/* Filename */}
-      <div className="text-[12px] font-medium text-mail-text truncate mb-1" title={name}>
-        {name}
-      </div>
-
-      {/* Meta */}
-      <div className="text-[10px] text-mail-subtle truncate">
-        {displayName(asset.fromName, asset.fromEmail)}
-      </div>
-      <div className="flex items-center justify-between mt-1.5">
-        <span className="text-[10px] text-mail-subtle">{formatDate(asset.receivedAt)}</span>
-        {asset.size && (
-          <span className="text-[9px] text-mail-subtle font-mono">{formatSize(asset.size)}</span>
+      {/* Preview area */}
+      <div className="h-[120px] flex items-center justify-center bg-mail-bg relative overflow-hidden">
+        {showPreview && !imgError ? (
+          <img
+            src={`/api/v1/assets/preview/${asset.id}`}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="w-12 h-12 rounded-lg flex items-center justify-center"
+            style={{ background: `${conf.color}15` }}
+          >
+            <Icon size={22} style={{ color: conf.color }} />
+          </div>
         )}
+
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <Eye size={16} className="text-white" />
+        </div>
       </div>
 
-      {/* Link indicator */}
-      {asset.assetType === 'link' && asset.domain && (
-        <div className="flex items-center gap-1 mt-1.5 text-[9px] text-mail-accent truncate">
-          <ExternalLink size={8} /> {asset.domain}
+      {/* Info */}
+      <div className="p-3">
+        <div className="text-[12px] font-medium text-mail-text truncate mb-1" title={name}>
+          {name}
         </div>
-      )}
+        <div className="text-[10px] text-mail-subtle truncate">
+          {displayName(asset.fromName, asset.fromEmail)}
+        </div>
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-[10px] text-mail-subtle">{formatDate(asset.receivedAt)}</span>
+          {asset.size != null && (
+            <span className="text-[9px] text-mail-subtle font-mono">{formatSize(asset.size)}</span>
+          )}
+        </div>
+
+        {/* Type badge */}
+        <div className="mt-2">
+          <span
+            className="text-[9px] font-medium px-1.5 py-0.5 rounded"
+            style={{ background: `${conf.color}15`, color: conf.color }}
+          >
+            {conf.label}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// List Row
+// List Row — with small image thumbnail for images
 // ---------------------------------------------------------------------------
 
 function AssetListRow({ asset, router }: { asset: Asset; router: ReturnType<typeof useRouter> }) {
-  const { icon: Icon, color } = getAssetIcon(asset);
-  const name = getDisplayName(asset);
+  const conf = CATEGORY_CONFIG[asset.mimeCategory] ?? CATEGORY_CONFIG.other;
+  const Icon = conf.icon;
+  const name = asset.filename || 'Untitled';
+  const showPreview = isImageAsset(asset);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <div
       onClick={() => router.push(`/mails/v1/ai-email-details/${asset.emailId}`)}
       className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-mail-hover transition-colors group"
     >
-      {/* Icon */}
-      <div
-        className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-        style={{ background: `${color}15` }}
-      >
-        <Icon size={14} style={{ color }} />
-      </div>
+      {/* Thumbnail / Icon */}
+      {showPreview && !imgError ? (
+        <div className="w-9 h-9 rounded-md overflow-hidden shrink-0 bg-mail-bg">
+          <img
+            src={`/api/v1/assets/preview/${asset.id}`}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div
+          className="w-9 h-9 rounded-md flex items-center justify-center shrink-0"
+          style={{ background: `${conf.color}15` }}
+        >
+          <Icon size={15} style={{ color: conf.color }} />
+        </div>
+      )}
 
       {/* Name + subject */}
       <div className="flex-1 min-w-0">
@@ -525,33 +516,28 @@ function AssetListRow({ asset, router }: { asset: Asset; router: ReturnType<type
         </div>
       </div>
 
+      {/* Type badge */}
+      <span
+        className="text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 hidden sm:block"
+        style={{ background: `${conf.color}15`, color: conf.color }}
+      >
+        {conf.label}
+      </span>
+
       {/* Sender */}
-      <div className="text-[11px] text-mail-subtle truncate max-w-[140px] hidden md:block">
+      <div className="text-[11px] text-mail-subtle truncate max-w-[120px] hidden md:block">
         {displayName(asset.fromName, asset.fromEmail)}
       </div>
 
       {/* Size */}
       <div className="text-[10px] text-mail-subtle font-mono w-[60px] text-right hidden sm:block">
-        {asset.size ? formatSize(asset.size) : asset.domain ?? '—'}
+        {asset.size ? formatSize(asset.size) : '—'}
       </div>
 
       {/* Date */}
       <div className="text-[10px] text-mail-subtle w-[80px] text-right shrink-0">
         {formatDate(asset.receivedAt)}
       </div>
-
-      {/* Link out */}
-      {asset.url && (
-        <a
-          href={asset.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-mail-subtle hover:text-mail-accent transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <ExternalLink size={12} />
-        </a>
-      )}
     </div>
   );
 }
