@@ -5,19 +5,42 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start"
+    "start": "next start",
+    "corsair": "corsair",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:v1": "node scripts/migrate-v1.mjs"
   },
   "dependencies": {
+    "@corsair-dev/cli": "^0.1.19",
+    "@corsair-dev/gmail": "^0.1.4",
+    "@corsair-dev/googlecalendar": "^0.1.4",
+    "@corsair-dev/mcp": "^0.1.22",
+    "@supabase/supabase-js": "^2.108.1",
+    "@upstash/redis": "^1.38.0",
+    "corsair": "^0.1.76",
+    "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.17.0",
+    "marked": "^18.0.5",
+    "next": "^15.5.19",
+    "openai": "^6.42.0",
+    "pg": "^8.21.0",
+    "pgvector": "^0.3.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.12"
+    "sonner": "^2.0.7",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

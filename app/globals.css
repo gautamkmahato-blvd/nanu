@@ -1,26 +1,235 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --mail-bg: #f8fafc;
+  --mail-surface: #ffffff;
+  --mail-sidebar: #f1f5f9;
+  --mail-rail: #f8fafc;
+  --mail-text: #0f172a;
+  --mail-muted: #475569;
+  --mail-subtle: #94a3b8;
+  --mail-border: #e2e8f0;
+  --mail-hover: #e2e8f0;
+  --mail-chip: #f1f5f9;
+  --mail-accent: #ed933a;
+  --mail-accent-hover: #d47d27;
+  --mail-accent-soft: #fef5e9;
+}
+
+.dark {
+  --mail-bg: #09090b;
+  --mail-surface: #121214;
+  --mail-sidebar: #0f0f12;
+  --mail-rail: #09090b;
+  --mail-text: #fafafa;
+  --mail-muted: #a1a1aa;
+  --mail-subtle: #52525b;
+  --mail-border: #1e1e22;
+  --mail-hover: #1e1e22;
+  --mail-chip: #27272a;
+  --mail-accent: #ed8b3a;
+  --mail-accent-hover: #d47d27;
+  --mail-accent-soft: rgba(250, 215, 139, 0.1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-mail-bg: var(--mail-bg);
+  --color-mail-surface: var(--mail-surface);
+  --color-mail-sidebar: var(--mail-sidebar);
+  --color-mail-rail: var(--mail-rail);
+  --color-mail-text: var(--mail-text);
+  --color-mail-muted: var(--mail-muted);
+  --color-mail-subtle: var(--mail-subtle);
+  --color-mail-border: var(--mail-border);
+  --color-mail-hover: var(--mail-hover);
+  --color-mail-chip: var(--mail-chip);
+  --color-mail-accent: var(--mail-accent);
+  --color-mail-accent-hover: var(--mail-accent-hover);
+  --color-mail-accent-soft: var(--mail-accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--mail-bg);
+  color: var(--mail-text);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+* {
+  box-sizing: border-box;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--mail-border);
+  border-radius: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--mail-subtle);
+}
+
+/* 
+-------------------------------------------------
+              Markdown Renderer 
+-------------------------------------------------
+*/
+
+/* Add this to your globals.css — Markdown styles for AI responses */
+
+.md-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--mail-muted);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.md-content > *:first-child { margin-top: 0; }
+.md-content > *:last-child { margin-bottom: 0; }
+
+/* Headings */
+.md-content h1, .md-content h2, .md-content h3,
+.md-content h4, .md-content h5, .md-content h6 {
+  color: var(--mail-text);
+  font-weight: 600;
+  margin: 16px 0 8px;
+  line-height: 1.4;
+}
+.md-content h1 { font-size: 18px; }
+.md-content h2 { font-size: 16px; }
+.md-content h3 { font-size: 14px; }
+.md-content h4, .md-content h5, .md-content h6 { font-size: 13px; }
+
+/* Paragraphs */
+.md-content p {
+  margin: 8px 0;
+}
+
+/* Bold & italic */
+.md-content strong { color: var(--mail-text); font-weight: 600; }
+.md-content em { font-style: italic; }
+
+/* Links */
+.md-content a {
+  color: var(--mail-accent);
+  text-decoration: none;
+}
+.md-content a:hover {
+  text-decoration: underline;
+}
+
+/* Lists */
+.md-content ul, .md-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.md-content li {
+  margin: 3px 0;
+}
+.md-content li::marker {
+  color: var(--mail-subtle);
+}
+.md-content ul { list-style-type: disc; }
+.md-content ol { list-style-type: decimal; }
+
+/* Nested lists */
+.md-content ul ul, .md-content ol ul { list-style-type: circle; }
+.md-content ul ul ul { list-style-type: square; }
+
+/* Inline code */
+.md-content code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  background: var(--mail-chip);
+  color: var(--mail-text);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--mail-border);
+}
+
+/* Code blocks */
+.md-content pre {
+  margin: 10px 0;
+  padding: 12px 14px;
+  background: var(--mail-chip);
+  border: 1px solid var(--mail-border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.md-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--mail-text);
+}
+
+/* Blockquotes */
+.md-content blockquote {
+  margin: 10px 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--mail-accent);
+  background: var(--mail-accent-soft);
+  border-radius: 0 6px 6px 0;
+  color: var(--mail-muted);
+}
+.md-content blockquote p { margin: 4px 0; }
+
+/* Horizontal rule */
+.md-content hr {
+  border: none;
+  border-top: 1px solid var(--mail-border);
+  margin: 16px 0;
+}
+
+/* Tables */
+.md-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.md-content th {
+  background: var(--mail-chip);
+  color: var(--mail-text);
+  font-weight: 600;
+  text-align: left;
+  padding: 6px 10px;
+  border: 1px solid var(--mail-border);
+}
+.md-content td {
+  padding: 6px 10px;
+  border: 1px solid var(--mail-border);
+  color: var(--mail-muted);
+}
+.md-content tr:nth-child(even) td {
+  background: var(--mail-chip);
+}
+
+/* Images */
+.md-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+/* Strikethrough */
+.md-content del {
+  color: var(--mail-subtle);
+  text-decoration: line-through;
+}
+
+/* Task lists (GFM) */
+.md-content input[type="checkbox"] {
+  margin-right: 6px;
+  accent-color: var(--mail-accent);
 }

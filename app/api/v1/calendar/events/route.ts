@@ -1,0 +1,139 @@
+// app/api/v1/calendar/events/route.ts
+// GET: Fetch events. POST: Create event with optional Google Meet link.
+
+import { NextResponse } from 'next/server';
+import { fetchCalendarEvents } from '@/lib/v1/calendar/events';
+import { DEFAULT_TENANT } from '@/constants/gmail';
+
+// ---- GET: List events ----
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const now = new Date();
+    const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+    const defaultEnd = new Date(startOfToday); defaultEnd.setDate(defaultEnd.getDate() + 42);
+    const timeMin = searchParams.get('start') ?? startOfToday.toISOString();
+    const timeMax = searchParams.get('end') ?? defaultEnd.toISOString();
+
+    if (isNaN(new Date(timeMin).getTime()) || isNaN(new Date(timeMax).getTime())) {
+      return NextResponse.json({ error: 'Invalid date format.' }, { status: 400 });
+    }
+
+    const events = await fetchCalendarEvents(timeMin, timeMax);
+
+    // Group by LOCAL date
+    const byDay: Record<string, typeof events> = {};
+    for (const event of events) {
+      const d = new Date(event.startTime);
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!byDay[dayKey]) byDay[dayKey] = [];
+      byDay[dayKey].push(event);
+    }
+
+    const totalEvents = events.length;
+    const totalMeetings = events.filter((e) => e.attendees.length > 0).length;
+    const uniqueAttendees = new Set(events.flatMap((e) => e.attendees.filter((a) => !a.self).map((a) => a.email))).size;
+    let busiestDay = ''; let busiestCount = 0;
+    for (const [day, dayEvents] of Object.entries(byDay)) { if (dayEvents.length > busiestCount) { busiestDay = day; busiestCount = dayEvents.length; } }
+
+    const attendeesList: { email: string; name: string | null }[] = [];
+    const seenEmails = new Set<string>();
+    for (const e of events) { for (const a of e.attendees) { if (!a.self && !seenEmails.has(a.email)) { seenEmails.add(a.email); attendeesList.push({ email: a.email, name: a.displayName }); } } }
+
+    return NextResponse.json({ events, byDay, total: events.length, stats: { totalEvents, totalMeetings, uniqueAttendees, busiestDay, busiestDayCount: busiestCount, daysWithEvents: Object.keys(byDay).length }, attendeesList, timeMin, timeMax });
+  } catch (error) {
+    console.error('[calendar] events fetch failed:', error);
+    const msg = error instanceof Error ? error.message : 'Failed';
+    const isAuthError = msg.includes('auth') || msg.includes('token') || msg.includes('credential') || msg.includes('not found');
+    return NextResponse.json({ error: isAuthError ? 'Google Calendar not connected.' : msg }, { status: isAuthError ? 401 : 500 });
+  }
+}
+
+// ---- POST: Create event ----
+// Body: { summary, description?, location?, startDateTime, endDateTime, attendeeEmails?, meetingType?: 'none'|'meet'|'zoom', zoomLink? }
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { summary, description, location, startDateTime, endDateTime, attendeeEmails, meetingType, zoomLink, skipNotification } = body;
+
+    if (!summary || !startDateTime || !endDateTime) {
+      return NextResponse.json({ error: 'summary, startDateTime, endDateTime are required' }, { status: 400 });
+    }
+
+    if (new Date(endDateTime).getTime() <= new Date(startDateTime).getTime()) {
+      return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 });
+    }
+
+    const { corsair } = await import('@/corsair');
+    const tenant = corsair.withTenant(DEFAULT_TENANT);
+
+    const attendees = Array.isArray(attendeeEmails)
+      ? attendeeEmails.filter((e: string) => e.includes('@')).map((email: string) => ({ email }))
+      : [];
+
+    // Build event body
+    const eventBody: Record<string, unknown> = {
+      summary,
+      start: { dateTime: new Date(startDateTime).toISOString() },
+      end: { dateTime: new Date(endDateTime).toISOString() },
+      attendees,
+    };
+
+    if (description) eventBody.description = description;
+
+    // Handle meeting link type
+    if (meetingType === 'zoom' && zoomLink) {
+      // Zoom link provided from separate Zoom API call
+      eventBody.location = zoomLink;
+      eventBody.description = (description ? description + '\n\n' : '') + `Zoom Meeting: ${zoomLink}`;
+    } else if (location) {
+      eventBody.location = location;
+    }
+
+    // Create with conference data version for Google Meet
+    const createParams: Record<string, unknown> = {
+      calendarId: 'primary',
+      sendUpdates: skipNotification ? 'none' : 'all',
+      event: eventBody,
+    };
+
+    // If Google Meet requested, add conference data version
+    // This tells Google Calendar to auto-generate a Meet link
+    if (meetingType === 'meet') {
+      createParams.conferenceDataVersion = 1;
+      (eventBody as Record<string, unknown>).conferenceData = {
+        createRequest: {
+          requestId: `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
+    const event = await tenant.googlecalendar.api.events.create(createParams as Parameters<typeof tenant.googlecalendar.api.events.create>[0]);
+
+    // Extract the Meet link from response
+    const hangoutLink = (event as Record<string, unknown>).hangoutLink as string | undefined;
+    const conferenceData = (event as Record<string, unknown>).conferenceData as Record<string, unknown> | undefined;
+    const meetLink = hangoutLink
+      ?? (conferenceData?.entryPoints as { uri: string }[] | undefined)?.[0]?.uri
+      ?? null;
+
+    return NextResponse.json({
+      success: true,
+      event: {
+        id: (event as Record<string, unknown>).id,
+        summary: (event as Record<string, unknown>).summary,
+        htmlLink: (event as Record<string, unknown>).htmlLink,
+        hangoutLink: meetLink,
+        start: (event as Record<string, unknown>).start,
+        end: (event as Record<string, unknown>).end,
+      },
+      meetLink,
+    }, { status: 201 });
+  } catch (error) {
+    console.error('[calendar] create event failed:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create event' }, { status: 500 });
+  }
+}
