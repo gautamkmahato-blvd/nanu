@@ -123,7 +123,7 @@ async function handleSync() {
   setSyncProgress({ phase: 'syncing', ingested: 0, total: 0, durationMs: null, message: 'Starting sync...' });
 
   try {
-    const res = await fetch('/api/v1/sync?limit=50', { method: 'POST' });
+    const res = await fetch('/api/v1/sync?limit=20', { method: 'POST' });
     if (!res.ok) throw new Error('Sync failed');
 
     // Poll until done
