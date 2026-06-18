@@ -13,6 +13,7 @@ import { corsair } from '@/corsair';
 import { getOwnEmail } from '@/lib/v1/get-own-email';
 import { ingestMessage } from '@/lib/v1/upsert';
 import { classifySyncedEmails } from '@/lib/v1/ai/classify';
+import { extractAssetsForEmail } from '@/lib/v1/assets';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -158,6 +159,7 @@ async function fetchAndIngestThread(
       const result = await ingestMessage(message, ownEmail, tenantId);
       if (result.ok) {
         counters.ingested++;
+        extractAssetsForEmail(result.id as string, tenantId).catch(() => {});
       } else {
         counters.skipped++;
         if (result.error) {
@@ -317,6 +319,7 @@ export async function syncThreads(
         const ingestResult = await ingestMessage(message, ownEmail, tenantId);
         if (ingestResult.ok) {
           result.messagesIngested++;
+          extractAssetsForEmail(ingestResult.id as string, tenantId).catch(() => {});
         } else {
           result.messagesSkipped++;
           if (ingestResult.error) {

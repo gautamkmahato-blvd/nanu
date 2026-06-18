@@ -21,6 +21,7 @@ import { ingestMessage } from '@/lib/v1/upsert';
 import { classifySyncedEmails } from '@/lib/v1/ai/classify';
 import { getEmailById } from './queries/ai-email-detail';
 import { checkAndNotifyPriorityEmail } from './priority-contacts/notify';
+import { extractAssetsForEmail } from './assets';
 
 // ---------------------------------------------------------------------------
 // Event shape (from docs.corsair.dev/plugins/gmail/webhooks "Response data")
@@ -182,6 +183,11 @@ export async function handleMessageReceived(event: GmailWebhookEvent, tenantId: 
     // Nudge AI analysis — fire-and-forget, classify chains to embed automatically
     classifySyncedEmails(tenantId).catch((err) =>
       console.error('[webhook] ai nudge failed:', err),
+    );
+
+    // Inside handleMessageReceived, after "console.log(`[webhook] ingested message ${result.id}`);"
+    extractAssetsForEmail(result.id as string, tenantId).catch((err) =>
+      console.warn('[webhook] asset extraction failed:', err),
     );
 
     // After the email is saved/processed, add:
