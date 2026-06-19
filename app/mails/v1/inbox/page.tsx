@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InboxThread } from '@/lib/v1/queries/inbox';
 import type { ThreadMessage } from '@/lib/v1/queries/thread';
-import { ComposeModal } from './_components/compose-modal';
 import { ReplyBox } from './_components/reply-box';
 import EmailAssistantChat from '../_components/email-assistant/EmailAssistantChat';
 import ScheduleMeetingPanel from '../_components/email-actions/ScheduleMeetingPanel';
@@ -52,6 +51,8 @@ function InboxInner() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncDone, setSyncDone] = useState(false);
+  const [syncError, setSyncError] = useState('');
   const [error, setError] = useState('');
   const [rightPanel, setRightPanel] = useState<'none' | 'schedule' | 'chat'>('none');
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
@@ -62,17 +63,8 @@ function InboxInner() {
   const threadStatusRef = useRef<HTMLDivElement>(null);
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
-
   const [syncModal, setSyncModal] = useState(false);
-  // Add this state next to your existing syncing/error states
-  const [syncProgress, setSyncProgress] = useState<{
-    phase: 'idle' | 'syncing' | 'classifying' | 'done' | 'error';
-    ingested: number;
-    total: number;
-    durationMs: number | null;
-    message: string;
-  }>({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' });
-  
+
   useEffect(() => {
     if (!threadStatusOpen) return;
     const handler = (e: MouseEvent) => { if (threadStatusRef.current && !threadStatusRef.current.contains(e.target as Node)) setThreadStatusOpen(false); };
@@ -104,7 +96,6 @@ function InboxInner() {
       setThreadStatus((data[0] as any)?.status ?? 'new');
       setDraftReply(null);
       setShowReplyBox(false);
-      // Only expand the latest message
       if (data.length > 0) {
         setExpandedMessages(new Set([data[data.length - 1].id]));
       } else {
@@ -116,62 +107,73 @@ function InboxInner() {
   useEffect(() => { loadInbox(); }, [loadInbox]);
   useEffect(() => { if (selectedThreadId) loadThread(selectedThreadId); else { setMessages([]); setDraftReply(null); setShowReplyBox(false); } }, [selectedThreadId, loadThread]);
 
+  // ── Simple sync: fire background, poll until done, refresh, close ──
+  async function handleSync() {
+    setSyncing(true);
+    setSyncDone(false);
+    setSyncError('');
 
-async function handleSync() {
-  setSyncing(true);
-  setError('');
-  setSyncProgress({ phase: 'syncing', ingested: 0, total: 0, durationMs: null, message: 'Starting sync...' });
+    try {
+      // Fire background sync (limit > 50 triggers background mode)
+      const res = await fetch('/api/v1/sync?limit=20', { method: 'POST' });
+      if (!res.ok) throw new Error('Sync failed to start');
 
-  try {
-    const res = await fetch('/api/v1/sync?limit=20', { method: 'POST' });
-    if (!res.ok) throw new Error('Sync failed');
+      // Poll until not syncing anymore
+      let attempts = 0;
+      const MAX_ATTEMPTS = 120; // 120 * 3s = 6 minutes max
 
-    // Poll until done
-    let status = 'syncing';
-    while (status === 'syncing') {
-      await new Promise((r) => setTimeout(r, 2000));
-      const poll = await fetch('/api/v1/sync');
-      const data = await poll.json();
-      status = data.status;
+      while (attempts < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 3000));
+        attempts++;
 
-      if (status === 'syncing') {
-        const isClassifying = data.fetched === data.total && data.total > 0;
-        setSyncProgress({
-          phase: isClassifying ? 'classifying' : 'syncing',
-          ingested: data.ingested,
-          total: data.total,
-          durationMs: null,
-          message: isClassifying
-            ? 'Running AI analysis & embeddings...'
-            : `Syncing ${data.ingested} / ${data.total} emails...`,
-        });
-      } else if (status === 'done') {
-        setSyncProgress({
-          phase: 'done',
-          ingested: data.ingested,
-          total: data.total,
-          durationMs: data.durationMs,
-          message: `Synced ${data.ingested} emails`,
-        });
-      } else if (status === 'error') {
-        throw new Error('Sync pipeline failed');
+        try {
+          const poll = await fetch('/api/v1/sync');
+          const data = await poll.json();
+
+          if (data.status === 'done') {
+            setSyncDone(true);
+            await loadInbox();
+            // Auto-close after 1.5 seconds
+            setTimeout(() => {
+              setSyncModal(false);
+              setSyncing(false);
+              setSyncDone(false);
+            }, 1500);
+            return;
+          }
+
+          if (data.status === 'error') {
+            throw new Error(data.errors?.[0] ?? 'Sync pipeline failed');
+          }
+
+          if (data.status === 'idle') {
+            // Sync finished before we started polling — just refresh
+            setSyncDone(true);
+            await loadInbox();
+            setTimeout(() => {
+              setSyncModal(false);
+              setSyncing(false);
+              setSyncDone(false);
+            }, 1500);
+            return;
+          }
+
+          // Still syncing — continue polling
+        } catch (pollErr) {
+          // Single poll failure — retry
+          console.warn('[sync] poll failed, retrying...', pollErr);
+        }
       }
-    }
 
-    await loadInbox();
-  } catch (err) {
-    setSyncProgress({
-      phase: 'error',
-      ingested: 0,
-      total: 0,
-      durationMs: null,
-      message: err instanceof Error ? err.message : 'Sync failed',
-    });
-    setError(err instanceof Error ? err.message : 'Sync failed');
-  } finally {
-    setSyncing(false);
+      // Timed out — refresh anyway
+      await loadInbox();
+      setSyncModal(false);
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
   }
-}
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
@@ -257,12 +259,9 @@ async function handleSync() {
               <span className="text-[13px] font-semibold text-mail-text">All Mail</span>
               {!loading && <span className="text-[11px] text-mail-subtle font-mono">{threads.length}</span>}
             </div>
-            <div className="flex items-center gap-2">
-              {/* <ComposeModal onSent={loadInbox} /> */}
-              <button onClick={() => setSyncModal(true)} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-[12px] cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-50">
-                {syncing ? <Loader2 size={12} className="animate-spin" /> : null} {syncing ? 'Syncing...' : 'Sync'}
-              </button>
-            </div>
+            <button onClick={() => setSyncModal(true)} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mail-border bg-transparent text-mail-muted text-[12px] cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-50">
+              {syncing ? <Loader2 size={12} className="animate-spin" /> : null} {syncing ? 'Syncing...' : 'Sync'}
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto sidebar-scroll">
@@ -337,7 +336,6 @@ async function handleSync() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto sidebar-scroll px-6 py-4">
-                {/* Collapsed count indicator */}
                 {messages.length > 1 && (
                   <div className="text-[11px] text-mail-subtle mb-3">{messages.length} messages in this thread</div>
                 )}
@@ -346,16 +344,9 @@ async function handleSync() {
                   const isExpanded = expandedMessages.has(msg.id);
                   const isLast = idx === messages.length - 1;
                   return (
-                    <MessageCard
-                      key={msg.id}
-                      msg={msg}
-                      isExpanded={isExpanded}
-                      isLast={isLast}
-                      onToggle={() => toggleMessage(msg.id)}
-                      emailStatus={statusMap[msg.id] ?? 'new'}
-                      onStatusChange={(s) => updateEmailStatus(msg.id, s)}
-                      onMarkDone={() => markEmailDone(msg.id)}
-                    />
+                    <MessageCard key={msg.id} msg={msg} isExpanded={isExpanded} isLast={isLast}
+                      onToggle={() => toggleMessage(msg.id)} emailStatus={statusMap[msg.id] ?? 'new'}
+                      onStatusChange={(s) => updateEmailStatus(msg.id, s)} onMarkDone={() => markEmailDone(msg.id)} />
                   );
                 })}
 
@@ -383,7 +374,7 @@ async function handleSync() {
                   </div>
                 )}
 
-                {/* Reply box — only on click */}
+                {/* Reply box */}
                 {showReplyBox && (
                   <div className="pl-12 mb-4">
                     <div className="rounded-xl border border-neutral-700 bg-mail-surface p-4">
@@ -416,140 +407,81 @@ async function handleSync() {
         )}
       </div>
 
-{/* ── Sync modal ── */}
-{syncModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-    <div className="rounded-2xl border border-mail-border bg-mail-surface p-6 w-[400px] shadow-2xl">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-base font-semibold m-0 flex items-center gap-2">Sync Emails</h3>
-        <button
-          onClick={() => { if (!syncing) { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); } }}
-          className="p-1 rounded-md text-mail-subtle hover:text-mail-muted hover:bg-mail-hover transition-colors cursor-pointer border-none bg-transparent"
-          disabled={syncing}
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      {/* ── Idle state ── */}
-      {syncProgress.phase === 'idle' && (
-        <>
-          <p className="text-[13px] text-mail-muted m-0 mb-2">This will sync your latest 20 emails from Gmail.</p>
-          <p className="text-[12px] text-mail-subtle m-0 mb-5">Emails will be AI-analyzed and embedded for search after sync.</p>
-        </>
-      )}
-
-      {/* ── Syncing / Classifying state ── */}
-      {(syncProgress.phase === 'syncing' || syncProgress.phase === 'classifying') && (
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Loader2 size={14} className="animate-spin text-mail-accent" />
-            <span className="text-[13px] text-mail-muted">{syncProgress.message}</span>
-          </div>
-
-          {/* Progress bar */}
-          {syncProgress.total > 0 && (
-            <div className="w-full bg-mail-hover rounded-full h-2 mb-2">
-              <div
-                className="bg-mail-accent h-2 rounded-full transition-all duration-500 ease-out"
-                style={{
-                  width: `${syncProgress.phase === 'classifying' ? 100 : Math.round((syncProgress.ingested / syncProgress.total) * 100)}%`,
-                }}
-              />
+      {/* ── Sync modal — simple: spinner → done → auto-close ── */}
+      {syncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl border border-mail-border bg-mail-surface p-6 w-[400px] shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-semibold m-0 flex items-center gap-2">Sync Emails</h3>
+              {!syncing && (
+                <button onClick={() => { setSyncModal(false); setSyncDone(false); setSyncError(''); }}
+                  className="p-1 rounded-md text-mail-subtle hover:text-mail-muted hover:bg-mail-hover transition-colors cursor-pointer border-none bg-transparent">
+                  <X size={16} />
+                </button>
+              )}
             </div>
-          )}
 
-          <div className="flex justify-between text-[11px] text-mail-subtle">
-            <span>
-              {syncProgress.phase === 'classifying'
-                ? 'AI processing...'
-                : `${syncProgress.ingested} of ${syncProgress.total} emails`}
-            </span>
-            <span>
-              {syncProgress.phase === 'classifying'
-                ? 'This may take a few minutes'
-                : `${syncProgress.total > 0 ? Math.round((syncProgress.ingested / syncProgress.total) * 100) : 0}%`}
-            </span>
+            {/* Idle — not started yet */}
+            {!syncing && !syncDone && !syncError && (
+              <>
+                <p className="text-[13px] text-mail-muted m-0 mb-2">Sync your latest emails from Gmail and run AI analysis.</p>
+                <p className="text-[12px] text-mail-subtle m-0 mb-5">This may take a few minutes depending on the number of new emails.</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setSyncModal(false)}
+                    className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleSync}
+                    className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-2">
+                    Start Sync
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Syncing — simple spinner */}
+            {syncing && !syncDone && (
+              <div className="py-8 flex flex-col items-center gap-3">
+                <Loader2 size={28} className="animate-spin text-mail-accent" />
+                <div className="text-[13px] text-mail-muted">Syncing your emails...</div>
+                <div className="text-[11px] text-mail-subtle">Fetching from Gmail · AI analysis · Embedding</div>
+              </div>
+            )}
+
+            {/* Done — auto-closes after 1.5s */}
+            {syncDone && (
+              <div className="py-8 flex flex-col items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500/15 flex items-center justify-center">
+                  <CheckCircle2 size={22} className="text-green-400" />
+                </div>
+                <div className="text-[13px] text-green-400 font-medium">Sync complete!</div>
+              </div>
+            )}
+
+            {/* Error */}
+            {syncError && (
+              <>
+                <div className="py-4 flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-red-500/15 flex items-center justify-center">
+                    <X size={16} className="text-red-400" />
+                  </div>
+                  <div className="text-[13px] text-red-400">{syncError}</div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => { setSyncModal(false); setSyncError(''); }}
+                    className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors">
+                    Close
+                  </button>
+                  <button onClick={() => { setSyncError(''); handleSync(); }}
+                    className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors">
+                    Retry
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
-
-      {/* ── Done state ── */}
-      {syncProgress.phase === 'done' && (
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-            <span className="text-[13px] text-green-400 font-medium">{syncProgress.message}</span>
-          </div>
-          {syncProgress.durationMs && (
-            <p className="text-[11px] text-mail-subtle m-0">
-              Completed in {(syncProgress.durationMs / 1000).toFixed(1)}s
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ── Error state ── */}
-      {syncProgress.phase === 'error' && (
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
-              <X size={12} className="text-red-400" />
-            </div>
-            <span className="text-[13px] text-red-400">{syncProgress.message}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Buttons ── */}
-      <div className="flex gap-2">
-        {syncProgress.phase === 'done' ? (
-          <button
-            onClick={() => { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); }}
-            className="flex-1 py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors"
-          >
-            Done
-          </button>
-        ) : syncProgress.phase === 'error' ? (
-          <>
-            <button
-              onClick={() => { setSyncModal(false); setSyncProgress({ phase: 'idle', ingested: 0, total: 0, durationMs: null, message: '' }); }}
-              className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors"
-            >
-              Close
-            </button>
-            <button
-              onClick={async () => { await handleSync(); }}
-              className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-2"
-            >
-              Retry
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => { if (!syncing) setSyncModal(false); }}
-              disabled={syncing}
-              className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors disabled:opacity-40"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => { await handleSync(); }}
-              disabled={syncing}
-              className="flex-[2] py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {syncing ? <><Loader2 size={13} className="animate-spin" /> Syncing...</> : 'Start Sync'}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  </div>
-)}
-
     </div>
   );
 }
@@ -569,8 +501,6 @@ function TopBtn({ icon: Icon, label, onClick }: { icon: React.ElementType; label
 // ---------------------------------------------------------------------------
 // MessageCard — collapsible
 // ---------------------------------------------------------------------------
-
-// Replace the entire MessageCard function in inbox/page.tsx with this:
 
 function MessageCard({ msg, isExpanded, isLast, onToggle, emailStatus, onStatusChange, onMarkDone }: {
   msg: ThreadMessage; isExpanded: boolean; isLast: boolean;
@@ -598,21 +528,13 @@ function MessageCard({ msg, isExpanded, isLast, onToggle, emailStatus, onStatusC
 
   return (
     <div className={`rounded-xl border mb-2 transition-all duration-200 ${isExpanded ? 'border-mail-border bg-mail-surface' : 'border-transparent hover:bg-mail-hover'}`}>
-      {/* ── Header — always visible, click to toggle ── */}
-      <div
-        className={`flex items-center gap-3 cursor-pointer select-none ${isExpanded ? 'px-5 py-4' : 'px-3 py-2.5'}`}
-        onClick={(e) => {
-          // Don't toggle if clicking on action buttons
-          if ((e.target as HTMLElement).closest('[data-actions]')) return;
-          onToggle();
-        }}
-      >
-        {/* Avatar */}
+      {/* Header — always visible */}
+      <div className={`flex items-center gap-3 cursor-pointer select-none ${isExpanded ? 'px-5 py-4' : 'px-3 py-2.5'}`}
+        onClick={(e) => { if ((e.target as HTMLElement).closest('[data-actions]')) return; onToggle(); }}>
         <div className={`rounded-full flex items-center justify-center font-bold text-white shrink-0 transition-all duration-200 ${isExpanded ? 'w-10 h-10 text-[13px]' : 'w-8 h-8 text-[11px]'}`} style={{ background: color }}>
           {initials(msg.fromName, msg.fromEmail)}
         </div>
 
-        {/* Name + preview or full info */}
         <div className="flex-1 min-w-0">
           {isExpanded ? (
             <>
@@ -630,11 +552,9 @@ function MessageCard({ msg, isExpanded, isLast, onToggle, emailStatus, onStatusC
           )}
         </div>
 
-        {/* Right side: actions (expanded) or just date (collapsed) */}
         {isExpanded ? (
           <div className="flex items-center gap-1 shrink-0" data-actions>
             <SaveToCategory emailId={msg.id} />
-
             <button onClick={(e) => { e.stopPropagation(); onMarkDone(); }} title="Mark done"
               className={`p-1.5 rounded-md transition-colors cursor-pointer border-none ${emailStatus === 'done' ? 'text-green-400 bg-green-500/10' : 'text-mail-subtle bg-transparent hover:text-mail-muted hover:bg-mail-hover'}`}>
               <CheckCircle2 size={14} />
@@ -688,7 +608,7 @@ function MessageCard({ msg, isExpanded, isLast, onToggle, emailStatus, onStatusC
         )}
       </div>
 
-      {/* ── Body — only when expanded ── */}
+      {/* Body — only when expanded */}
       <div className={`overflow-hidden transition-all duration-200 ease-in-out ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-5 pb-5 pt-1 pl-[68px]">
           {msg.bodyHtml ? (

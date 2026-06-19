@@ -19,7 +19,8 @@
 .dark {
   --mail-bg: #09090b;
   --mail-surface: #0d0d0f;
-  --mail-sidebar: #0d0d10;
+  /* --mail-sidebar: #0d0d10; */
+  --mail-sidebar: #09090b;
   --mail-rail: #09090b;
   --mail-text: #fafafa;
   --mail-muted: #a1a1aa;

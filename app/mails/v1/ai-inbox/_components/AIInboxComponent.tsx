@@ -77,7 +77,7 @@ const GROUP_CONFIG: Record<StatusGroup, { icon: React.ElementType; color: string
 const PRIORITY_COLORS: Record<PriorityLevel, string> = { urgent: '#ef4444', important: '#f97316', normal: '#3b82f6', low: '#6b7280' };
 const ATTENTION_COLORS: Record<AttentionType, string> = { risk: '#ef4444', opportunity: '#22c55e', deadline: '#f97316', action_required: '#f59e0b', follow_up: '#3b82f6', information: '#6b7280' };
 
-const AVATAR_COLORS = ['#e57373','#f06292','#ba68c8','#9575cd','#7986cb','#64b5f6','#4fc3f7','#4dd0e1','#4db6ac','#81c784','#aed581','#dce775','#ffd54f','#ffb74d','#ff8a65','#a1887f'];
+const AVATAR_COLORS = ['#e57373', '#f06292', '#ba68c8', '#9575cd', '#7986cb', '#64b5f6', '#4fc3f7', '#4dd0e1', '#4db6ac', '#81c784', '#aed581', '#dce775', '#ffd54f', '#ffb74d', '#ff8a65', '#a1887f'];
 function getAvatarColor(name: string): string { let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]; }
 function initials(n: string | null, e: string): string { const s = n || e; const p = s.trim().split(/\s+/); return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : s.slice(0, 2).toUpperCase(); }
 function displayName(n: string | null, e: string): string { return n || (e.indexOf('@') > 0 ? e.slice(0, e.indexOf('@')) : e); }
@@ -193,9 +193,11 @@ export default function AIInboxComponent() {
               </div>
 
               {/* Threads */}
-              {group.threads.map((thread) => (
-                <ThreadRow key={thread.id} thread={thread} activeFilter={activeFilter}
-  onClick={() => router.push(`/mails/v1/ai-email-details/${thread.id}`)} />              ))}
+                <div className="flex flex-col gap-2.5">
+                  {group.threads.map((thread) => (
+                    <ThreadRow key={thread.id} thread={thread} activeFilter={activeFilter}
+                    onClick={() => router.push(`/mails/v1/ai-email-details/${thread.id}`)} />))}
+                </div>
             </div>
           );
         })}
@@ -208,14 +210,14 @@ export default function AIInboxComponent() {
 // Thread Row
 // ---------------------------------------------------------------------------
 
-function ThreadRow({ thread, onClick, activeFilter }: { thread: EnrichedThread; onClick: () => void; activeFilter: AttentionType | 'all' }) {  
+function ThreadRow({ thread, onClick, activeFilter }: { thread: EnrichedThread; onClick: () => void; activeFilter: AttentionType | 'all' }) {
   const color = getAvatarColor(thread.fromName || thread.fromEmail);
   const prColor = PRIORITY_COLORS[thread.priority.level];
   const attnColor = ATTENTION_COLORS[thread.priority.attentionType];
 
   return (
     <div onClick={onClick}
-      className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer hover:bg-mail-hover transition-colors mb-0.5 group">
+      className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer hover:bg-mail-hover transition-colors mb-0.5 group border border-[var(--mail-border)]">
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0" style={{ background: color }}>
         {initials(thread.fromName, thread.fromEmail)}

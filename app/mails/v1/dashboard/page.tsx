@@ -92,8 +92,8 @@ export default function DashboardPage() {
   const { stats, todaysFocus, actionRequired, briefing } = data;
 
   return (
-    <div className="bg-mail-bg h-full overflow-y-auto text-mail-text font-sans">
-      {/* Header */}
+<div className="bg-mail-bg h-full overflow-y-auto overflow-x-hidden text-mail-text font-sans min-w-0">
+{/* Header */}
       <div className="flex justify-between items-center px-8 pt-6 pb-4">
         <div>
           <h1 className="text-2xl font-semibold m-0">{greeting()} 👋</h1>
@@ -106,7 +106,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 px-8 pb-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 px-8 pb-5">
       {STAT_CONFIG.map((s) => {
           const Icon = s.icon;
           const count = stats[s.key];
@@ -132,7 +132,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 px-8 pb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)] gap-4 px-8 pb-8">
       {/* Left */}
         <div className="flex flex-col gap-4">
           {/* Today's Focus */}
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 {briefing.map((item, i) => (
                   <div key={i} className="flex gap-2.5 items-start">
                     <span className="text-base shrink-0 mt-0.5">{item.emoji}</span>
-                    <p className="text-[13px] text-mail-muted m-0 leading-relaxed break-words">{item.text}</p>
+                    <p className="text-[13px] text-mail-muted m-0 leading-relaxed break-words overflow-hidden">{item.text}</p>
                     </div>
                 ))}
               </div>
