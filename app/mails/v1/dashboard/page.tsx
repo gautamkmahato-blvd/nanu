@@ -106,8 +106,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-5 gap-3 px-8 pb-5">
-        {STAT_CONFIG.map((s) => {
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 px-8 pb-5">
+      {STAT_CONFIG.map((s) => {
           const Icon = s.icon;
           const count = stats[s.key];
           return (
@@ -132,8 +132,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Main grid */}
-      <div className="grid gap-4 px-8 pb-8" style={{ gridTemplateColumns: '1fr 360px' }}>
-        {/* Left */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 px-8 pb-8">
+      {/* Left */}
         <div className="flex flex-col gap-4">
           {/* Today's Focus */}
           {/* <div className="rounded-xl border border-mail-border p-6" style={{ background: 'linear-gradient(135deg, var(--mail-surface) 0%, #1a1a2e 100%)' }}>
@@ -211,8 +211,8 @@ export default function DashboardPage() {
                 {briefing.map((item, i) => (
                   <div key={i} className="flex gap-2.5 items-start">
                     <span className="text-base shrink-0 mt-0.5">{item.emoji}</span>
-                    <p className="text-[13px] text-mail-muted m-0 leading-relaxed">{item.text}</p>
-                  </div>
+                    <p className="text-[13px] text-mail-muted m-0 leading-relaxed break-words">{item.text}</p>
+                    </div>
                 ))}
               </div>
             )}

@@ -119,8 +119,8 @@ const upcoming = allEvents
   return (
     <div className="rounded-xl border border-mail-border bg-mail-surface p-5">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-mail-subtle">
+      <div className="flex justify-between items-center mb-4 gap-2">
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-mail-subtle">
           <Calendar size={14} /> Calendar
         </div>
         <div className="flex items-center gap-2">

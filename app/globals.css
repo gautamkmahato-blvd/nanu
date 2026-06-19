@@ -1,35 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --mail-bg: #f8fafc;
-  --mail-surface: #ffffff;
-  --mail-sidebar: #f1f5f9;
-  --mail-rail: #f8fafc;
-  --mail-text: #0f172a;
+  --mail-bg: #ffffff;
+  --mail-surface: #fbfbfb;
+  --mail-sidebar: #ffffff;
+  --mail-rail: #fbfdff;
+  --mail-text: #151515;
   --mail-muted: #475569;
-  --mail-subtle: #94a3b8;
-  --mail-border: #e2e8f0;
-  --mail-hover: #e2e8f0;
+  --mail-subtle: #6B7280;
+  --mail-border: #e9e9e9;
+  --mail-hover: #f3f4f6;
   --mail-chip: #f1f5f9;
-  --mail-accent: #ed933a;
-  --mail-accent-hover: #d47d27;
-  --mail-accent-soft: #fef5e9;
+  --mail-accent: #009541;
+  --mail-accent-hover: #2e5c47;
+  --mail-accent-soft: #edf5ee;
 }
 
 .dark {
   --mail-bg: #09090b;
-  --mail-surface: #121214;
-  --mail-sidebar: #0f0f12;
+  --mail-surface: #0d0d0f;
+  --mail-sidebar: #0d0d10;
   --mail-rail: #09090b;
   --mail-text: #fafafa;
   --mail-muted: #a1a1aa;
-  --mail-subtle: #52525b;
-  --mail-border: #1e1e22;
-  --mail-hover: #1e1e22;
+  --mail-subtle: #71717A;
+  --mail-border: #1b1b1e;
+  --mail-hover: #1a1a1e;
   --mail-chip: #27272a;
-  --mail-accent: #ed8b3a;
-  --mail-accent-hover: #d47d27;
-  --mail-accent-soft: rgba(250, 215, 139, 0.1);
+  --mail-accent: #009541;
+  --mail-accent-hover: #b0e4c0;
+  --mail-accent-soft: rgba(160, 219, 167, 0.1);
 }
 
 @theme inline {
@@ -79,8 +79,6 @@ body {
               Markdown Renderer 
 -------------------------------------------------
 */
-
-/* Add this to your globals.css — Markdown styles for AI responses */
 
 .md-content {
   font-size: 13px;
