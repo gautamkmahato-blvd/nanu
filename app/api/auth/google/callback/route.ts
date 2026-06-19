@@ -3,22 +3,20 @@
 //
 // Flow:
 // 1. Verify CSRF (state matches the HMAC cookie we set in /api/auth/google)
-// 2. Provision Corsair tenant (setupCorsair — idempotent)
-// 3. Exchange code for tokens directly with Google's token endpoint
-// 4. Decode id_token to get user email + name
-// 5. Store tokens in Corsair via the keys API
-// 6. Set encrypted session cookie
-// 7. Redirect to /mails/v1/dashboard
+// 2. Exchange code for tokens directly with Google's token endpoint
+// 3. Decode id_token to get user's Google `sub` (stable, unique per Google account)
+// 4. Derive a DETERMINISTIC tenantId from the sub — same user always gets same tenant
+// 5. Provision Corsair tenant (setupCorsair — idempotent)
+// 6. Store tokens in Corsair via the keys API
+// 7. Set encrypted session cookie
+// 8. Redirect to /mails/v1/dashboard
 //
-// Why not processOAuthCallback?
-// Corsair's processOAuthCallback validates a state token that IT generated.
-// Since we build the Google OAuth URL ourselves, we exchange tokens manually
-// and set them via corsair.withTenant(id).gmail.keys.set_*().
-//
-// Required env:
-//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXT_PUBLIC_BASE_URL, SESSION_SECRET
+// CRITICAL FIX: tenantId was previously derived from `state` (a random UUID),
+// which meant every login created a new tenant. Now it's derived from the
+// Google `sub` claim, so the same Google account always maps to the same tenant.
 
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { corsair } from '@/corsair';
 import { setupCorsair } from 'corsair';
 import {
@@ -29,6 +27,29 @@ import {
 } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
+
+// ---------------------------------------------------------------------------
+// Deterministic tenant ID from Google sub
+// ---------------------------------------------------------------------------
+// Uses SHA-256 of a namespace prefix + Google sub, formatted as a UUID.
+// Same Google account → same tenantId every time, across all devices/sessions.
+// ---------------------------------------------------------------------------
+
+function deriveTenantId(googleSub: string): string {
+  const hash = crypto
+    .createHash('sha256')
+    .update(`contextmode:${googleSub}`)
+    .digest('hex');
+
+  // Format as UUID v5-style: xxxxxxxx-xxxx-5xxx-yxxx-xxxxxxxxxxxx
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    '5' + hash.slice(13, 16),          // version 5
+    ((parseInt(hash[16], 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20), // variant
+    hash.slice(20, 32),
+  ].join('-');
+}
 
 // ---------------------------------------------------------------------------
 // Google token exchange
@@ -141,19 +162,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${loginUrl}?error=csrf_failed`);
   }
 
-  const userId = state;
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
-  // ----- 1. Provision Corsair tenant -----
-  try {
-    await setupCorsair(corsair, { tenantId: userId });
-    console.log(`[auth] tenant provisioned: ${userId}`);
-  } catch (err) {
-    console.error('[auth] setupCorsair failed:', err);
-    return NextResponse.redirect(`${loginUrl}?error=provision_failed`);
-  }
-
-  // ----- 2. Exchange code for tokens with Google -----
+  // ----- 1. Exchange code for tokens with Google -----
   let tokens: GoogleTokenResponse;
   try {
     tokens = await exchangeCodeForTokens(code, redirectUri);
@@ -168,7 +179,39 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${loginUrl}?error=token_exchange_failed`);
   }
 
-  // ----- 3. Store tokens in Corsair -----
+  // ----- 2. Extract user info from id_token -----
+  let email = '';
+  let name = '';
+  let googleSub = '';
+
+  if (tokens.id_token) {
+    const profile = decodeIdToken(tokens.id_token);
+    email = profile.email ?? '';
+    name = profile.name ?? '';
+    googleSub = profile.sub ?? '';
+    console.log(`[auth] user profile: ${email} (${name}), sub: ${googleSub}`);
+  }
+
+  // The sub claim is required — it's the stable Google account identifier
+  if (!googleSub) {
+    console.error('[auth] no sub claim in id_token — cannot derive stable tenant');
+    return NextResponse.redirect(`${loginUrl}?error=missing_sub`);
+  }
+
+  // ----- 3. Derive stable tenantId from Google sub -----
+  const userId = deriveTenantId(googleSub);
+  console.log(`[auth] derived stable tenantId: ${userId} from sub: ${googleSub}`);
+
+  // ----- 4. Provision Corsair tenant (idempotent) -----
+  try {
+    await setupCorsair(corsair, { tenantId: userId });
+    console.log(`[auth] tenant provisioned: ${userId}`);
+  } catch (err) {
+    console.error('[auth] setupCorsair failed:', err);
+    return NextResponse.redirect(`${loginUrl}?error=provision_failed`);
+  }
+
+  // ----- 5. Store tokens in Corsair -----
   try {
     const tenant = corsair.withTenant(userId);
 
@@ -190,17 +233,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${loginUrl}?error=token_store_failed`);
   }
 
-  // ----- 4. Extract user info from id_token -----
-  let email = '';
-  let name = '';
-
-  if (tokens.id_token) {
-    const profile = decodeIdToken(tokens.id_token);
-    email = profile.email ?? '';
-    name = profile.name ?? '';
-    console.log(`[auth] user profile from id_token: ${email} (${name})`);
-  }
-
   // Fallback: try Gmail API if id_token didn't have email
   if (!email) {
     try {
@@ -215,7 +247,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // ----- 5. Set session cookie + redirect -----
+  // ----- 6. Set session cookie + redirect -----
   const session = buildSessionCookie(userId, email, name);
   const clearCsrf = buildClearCsrfCookie();
 
