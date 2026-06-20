@@ -12,7 +12,9 @@
   --mail-hover: #f3f4f6;
   --mail-chip: #f1f5f9;
   --mail-accent: #009541;
-  --mail-accent-hover: #2e5c47;
+  --mail-card-bg: #09090b;
+  --mail-card-header: #374151;
+  --mail-accent-hover: #1b1b1b;
   --mail-accent-soft: #edf5ee;
 }
 
@@ -29,6 +31,8 @@
   --mail-hover: #1a1a1e;
   --mail-chip: #27272a;
   --mail-accent: #009541;
+  --mail-card-bg: #09090b;
+  --mail-card-header: #d4d4d8;
   --mail-accent-hover: #b0e4c0;
   --mail-accent-soft: rgba(160, 219, 167, 0.1);
 }
@@ -49,6 +53,7 @@
   --color-mail-accent-soft: var(--mail-accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-mail-card-header: var(--mail-card-header);
 }
 
 body {
@@ -73,6 +78,12 @@ body {
 }
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--mail-subtle);
+}
+
+/* Fix native date/time input icons in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
 }
 
 /*  

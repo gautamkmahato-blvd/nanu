@@ -48,7 +48,7 @@ const RAIL_ITEMS: RailItem[] = [
     id: 'calendar',
     label: 'Calendar',
     icon: Calendar,
-    matchPrefixes: ['/mails/v1/calendar', '/mails/v1/meeting-prep'],
+    matchPrefixes: ['/mails/v1/calendar', '/mails/v1/meeting-prep', '/mails/v1/contacts', '/mails/v1/priority-contacts', '/mails/v1/bookings', '/mails/v1/booking-settings'],
   },
   // {
   //   id: 'contacts',

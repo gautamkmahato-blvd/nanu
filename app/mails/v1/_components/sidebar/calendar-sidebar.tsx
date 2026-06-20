@@ -21,7 +21,8 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/mails/v1/calendar', label: 'Calendar', icon: Calendar },
       { href: '/mails/v1/meeting-prep', label: 'Meeting Prep', icon: Target, badge: 'AI' },
-      { href: '/mails/v1/priority-contacts', label: 'Priority Contacts', icon: Star }
+      { href: '/mails/v1/priority-contacts', label: 'Priority Contacts', icon: Star },
+      { href: '/mails/v1/bookings', label: 'Bookings', icon: Calendar },
     ],
   },
   {

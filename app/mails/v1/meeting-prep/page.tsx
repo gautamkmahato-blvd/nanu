@@ -1,5 +1,4 @@
 // app/mails/v1/meeting-prep/page.tsx
-// Updated: "View Related Emails" button + right side panel per meeting card.
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -13,51 +12,31 @@ import {
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Types (matching new API response)
+// Types
 // ---------------------------------------------------------------------------
 
 type AttendeePrep = {
-  email: string;
-  name: string | null;
-  responseStatus: string;
-  emailsReceived: number;
-  emailsSent: number;
+  email: string; name: string | null; responseStatus: string;
+  emailsReceived: number; emailsSent: number;
 };
 
 type AiPrep = {
-  briefing: string;
-  talkingPoints: string[];
-  openItems: string[];
-  riskFlags: string[];
-  suggestedApproach: string;
+  briefing: string; talkingPoints: string[]; openItems: string[];
+  riskFlags: string[]; suggestedApproach: string;
   attendeeNotes: Record<string, string>;
 };
 
-// Lightweight shape returned by the API for the side panel
 type RelatedEmail = {
-  id: string;
-  subject: string | null;
-  fromEmail: string;
-  fromName: string | null;
-  snippet: string | null;
-  receivedAt: string;
-  finalScore: number;
+  id: string; subject: string | null; fromEmail: string; fromName: string | null;
+  snippet: string | null; receivedAt: string; finalScore: number;
   relevantToAttendees: string[];
 };
 
 type PreparedEvent = {
-  id: string;
-  summary: string;
-  startTime: string;
-  endTime: string;
-  hangoutLink: string | null;
-  htmlLink: string | null;
-  location: string | null;
-  description: string | null;
-  attendeePrep: AttendeePrep[];
-  prepSummary: string;
-  aiPrep: AiPrep | null;
-  relatedEmails?: RelatedEmail[];
+  id: string; summary: string; startTime: string; endTime: string;
+  hangoutLink: string | null; htmlLink: string | null; location: string | null;
+  description: string | null; attendeePrep: AttendeePrep[]; prepSummary: string;
+  aiPrep: AiPrep | null; relatedEmails?: RelatedEmail[];
 };
 
 type ApiResponse = {
@@ -116,8 +95,6 @@ function MeetingPrepContent() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Related emails side panel state
   const [emailPanelEventId, setEmailPanelEventId] = useState<string | null>(null);
   const emailPanelEvent = events.find((e) => e.id === emailPanelEventId) ?? null;
 
@@ -141,14 +118,12 @@ function MeetingPrepContent() {
   const totalPending = useMemo(() => events.reduce((s, e) => s + (e.aiPrep?.openItems.length ?? 0), 0), [events]);
   const totalRisks = useMemo(() => events.reduce((s, e) => s + (e.aiPrep?.riskFlags.length ?? 0), 0), [events]);
 
-  // Toggle handler: clicking the same meeting closes the panel, different meeting switches it
   const handleShowEmails = (eventId: string) => {
     setEmailPanelEventId((prev) => (prev === eventId ? null : eventId));
   };
 
   return (
     <div className="flex h-full">
-      {/* ── Main content area ── */}
       <div className="bg-mail-bg flex-1 min-w-0 h-full overflow-y-auto text-mail-text font-sans">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-mail-border">
@@ -187,7 +162,6 @@ function MeetingPrepContent() {
 
           {fetchError && <div className="px-4 py-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-[13px] mb-4">{fetchError}</div>}
 
-          {/* Pipeline errors for individual meetings */}
           {errors.length > 0 && (
             <div className="mb-4">
               {errors.map((e, i) => (
@@ -217,12 +191,8 @@ function MeetingPrepContent() {
         </div>
       </div>
 
-      {/* ── Related Emails side panel ── */}
       {emailPanelEvent && (
-        <RelatedEmailsPanel
-          event={emailPanelEvent}
-          onClose={() => setEmailPanelEventId(null)}
-        />
+        <RelatedEmailsPanel event={emailPanelEvent} onClose={() => setEmailPanelEventId(null)} />
       )}
     </div>
   );
@@ -233,21 +203,19 @@ function MeetingPrepContent() {
 // ---------------------------------------------------------------------------
 
 function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onToggle, onShowEmails }: {
-  event: PreparedEvent;
-  isExpanded: boolean;
-  isHighlighted: boolean;
-  isEmailPanelActive: boolean;
-  onToggle: () => void;
-  onShowEmails: (eventId: string) => void;
+  event: PreparedEvent; isExpanded: boolean; isHighlighted: boolean;
+  isEmailPanelActive: boolean; onToggle: () => void; onShowEmails: (eventId: string) => void;
 }) {
   const tu = timeUntil(event.startTime);
   const ai = event.aiPrep;
   const hasAiContent = ai && (ai.briefing || ai.talkingPoints.length > 0);
   const emailCount = event.relatedEmails?.length ?? 0;
 
+  console.log('[meeting-prep] event:', event.summary, 'relatedEmails:', event.relatedEmails?.length, 'emailCount:', emailCount);
+
   return (
     <div className={`rounded-xl border mb-3 overflow-hidden transition-colors ${isHighlighted ? 'border-mail-accent' : isEmailPanelActive ? 'border-mail-accent/50' : 'border-mail-border'}`}>
-      {/* Header — always visible */}
+      {/* Header */}
       <div onClick={onToggle} className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-mail-hover transition-colors">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -264,8 +232,6 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
             {event.prepSummary && <><span>·</span><span className="flex items-center gap-1"><Mail size={11} /> {event.prepSummary}</span></>}
           </div>
         </div>
-
-        {/* Avatar stack */}
         <div className="flex -space-x-1.5 shrink-0">
           {event.attendeePrep.slice(0, 5).map((a) => (
             <div key={a.email} className="w-7 h-7 rounded-full bg-mail-hover border-2 border-mail-bg flex items-center justify-center text-[9px] font-bold text-mail-muted">
@@ -273,7 +239,6 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
             </div>
           ))}
         </div>
-
         {isExpanded ? <ChevronUp size={16} className="text-mail-subtle shrink-0 ml-2" /> : <ChevronDown size={16} className="text-mail-subtle shrink-0 ml-2" />}
       </div>
 
@@ -283,16 +248,16 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
           {ai && hasAiContent ? (
             <>
               {ai.briefing && (
-                <PrepSection icon={Sparkles} title="AI Briefing" color="var(--mail-accent)" accent>
+                <PrepSection icon={Sparkles} title="AI Briefing">
                   <div className="text-[13px] text-mail-muted leading-relaxed"><MarkdownRenderer content={ai.briefing} /></div>
                 </PrepSection>
               )}
 
               {ai.talkingPoints.length > 0 && (
-                <PrepSection icon={Lightbulb} title="Talking Points" color="var(--mail-accent)">
+                <PrepSection icon={Lightbulb} title="Talking Points">
                   {ai.talkingPoints.map((pt, i) => (
                     <div key={i} className="flex gap-2 py-1 text-[13px]">
-                      <span className="text-mail-accent font-semibold shrink-0">{i + 1}.</span>
+                      <span className="text-mail-card-header font-semibold shrink-0">{i + 1}.</span>
                       <span className="text-mail-muted">{pt}</span>
                     </div>
                   ))}
@@ -300,31 +265,30 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
               )}
 
               {ai.openItems.length > 0 && (
-                <PrepSection icon={AlertTriangle} title="Open Items" color="#f59e0b" accent>
+                <PrepSection icon={AlertTriangle} title="Open Items">
                   {ai.openItems.map((item, i) => (
                     <div key={i} className="flex gap-2 py-0.5 text-[13px]">
-                      <ArrowRight size={13} className="text-yellow-400 shrink-0 mt-0.5" />
-                      <span className="text-yellow-400/80">{item}</span>
+                      <ArrowRight size={13} className="text-mail-subtle shrink-0 mt-0.5" />
+                      <span className="text-mail-muted">{item}</span>
                     </div>
                   ))}
                 </PrepSection>
               )}
 
               {ai.riskFlags.length > 0 && (
-                <PrepSection icon={ShieldAlert} title="Watch Out" color="#ef4444" accent>
+                <PrepSection icon={ShieldAlert} title="Watch Out">
                   {ai.riskFlags.map((flag, i) => (
-                    <div key={i} className="text-[13px] text-red-400/80 py-0.5 flex gap-2">
-                      <Flag size={12} className="text-red-400 shrink-0 mt-0.5" />{flag}
+                    <div key={i} className="text-[13px] text-mail-muted py-0.5 flex gap-2">
+                      <Flag size={12} className="text-mail-subtle shrink-0 mt-0.5" />{flag}
                     </div>
                   ))}
                 </PrepSection>
               )}
 
               {ai.suggestedApproach && (
-                <div className="mt-3 px-4 py-3 rounded-lg bg-green-500/5 border border-green-500/15 text-[13px]">
-                  <span className="font-semibold text-green-400">Suggested Approach: </span>
-                  <span className="text-mail-muted">{ai.suggestedApproach}</span>
-                </div>
+                <PrepSection icon={CheckCircle} title="Suggested Approach">
+                  <div className="text-[13px] text-mail-muted leading-relaxed">{ai.suggestedApproach}</div>
+                </PrepSection>
               )}
             </>
           ) : (
@@ -333,7 +297,7 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
 
           {/* Attendees */}
           <div className="mt-5">
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-mail-subtle mb-3">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-mail-card-header mb-3">
               <Users size={13} /> Attendees ({event.attendeePrep.length})
             </div>
             {event.attendeePrep.map((a) => (
@@ -352,7 +316,7 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
           {/* Actions */}
           <div className="flex gap-2 mt-4 flex-wrap">
             {event.hangoutLink && (
-              <a href={event.hangoutLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-lg border-none bg-blue-500 hover:bg-blue-600 text-white no-underline font-medium transition-colors">
+              <a href={event.hangoutLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-lg border-none bg-mail-accent hover:bg-mail-accent-hover text-white no-underline font-medium transition-colors">
                 <Video size={13} /> Join Meeting
               </a>
             )}
@@ -361,7 +325,6 @@ function MeetingCard({ event, isExpanded, isHighlighted, isEmailPanelActive, onT
                 <ExternalLink size={12} /> Open in Calendar
               </a>
             )}
-            {/* Related emails button — only show when emails exist */}
             {emailCount > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); onShowEmails(event.id); }}
@@ -391,7 +354,6 @@ function RelatedEmailsPanel({ event, onClose }: { event: PreparedEvent; onClose:
 
   return (
     <div className="w-[380px] shrink-0 h-full border-l border-mail-border bg-mail-bg overflow-y-auto">
-      {/* Sticky header */}
       <div className="px-4 py-3 border-b border-mail-border flex items-center justify-between sticky top-0 bg-mail-bg z-10">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-[13px] font-semibold text-mail-text">
@@ -401,44 +363,24 @@ function RelatedEmailsPanel({ event, onClose }: { event: PreparedEvent; onClose:
           </div>
           <div className="text-[11px] text-mail-subtle mt-0.5 truncate">{event.summary}</div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-mail-subtle hover:text-mail-text transition-colors p-1 rounded hover:bg-mail-hover cursor-pointer shrink-0 ml-2"
-        >
+        <button onClick={onClose} className="text-mail-subtle hover:text-mail-text transition-colors p-1 rounded hover:bg-mail-hover cursor-pointer shrink-0 ml-2 border-none bg-transparent">
           <X size={14} />
         </button>
       </div>
 
-      {/* Email list */}
       <div className="px-3 py-2">
         {emails.length === 0 ? (
           <div className="text-center py-8 text-mail-subtle text-xs">No related emails found</div>
         ) : (
           emails.map((email) => (
-            <div
-              key={email.id}
-              onClick={() => router.push(`/mails/v1/ai-email-details/${email.id}`)}
-              className="px-3 py-3 rounded-lg cursor-pointer hover:bg-mail-hover transition-colors mb-1 border border-transparent hover:border-mail-border group"
-            >
-              {/* From + date */}
+            <div key={email.id} onClick={() => router.push(`/mails/v1/ai-email-details/${email.id}`)}
+              className="px-3 py-3 rounded-lg cursor-pointer hover:bg-mail-hover transition-colors mb-1 border border-transparent hover:border-mail-border group">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[12px] font-medium text-mail-text truncate max-w-[220px]">
-                  {email.fromName || email.fromEmail}
-                </span>
-                <span className="text-[10px] text-mail-subtle shrink-0 ml-2">
-                  {new Date(email.receivedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                </span>
+                <span className="text-[12px] font-medium text-mail-text truncate max-w-[220px]">{email.fromName || email.fromEmail}</span>
+                <span className="text-[10px] text-mail-subtle shrink-0 ml-2">{new Date(email.receivedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
               </div>
-
-              {/* Subject */}
               <div className="text-[12px] text-mail-muted truncate">{email.subject || '(no subject)'}</div>
-
-              {/* Snippet */}
-              {email.snippet && (
-                <div className="text-[11px] text-mail-subtle mt-1 line-clamp-2 leading-relaxed">{email.snippet}</div>
-              )}
-
-              {/* Score + attendee count */}
+              {email.snippet && <div className="text-[11px] text-mail-subtle mt-1 line-clamp-2 leading-relaxed">{email.snippet}</div>}
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-mail-accent-soft text-mail-accent">
                   Relevance {(email.finalScore * 100).toFixed(0)}%
@@ -448,7 +390,6 @@ function RelatedEmailsPanel({ event, onClose }: { event: PreparedEvent; onClose:
                     <Users size={8} /> {email.relevantToAttendees.length} attendee{email.relevantToAttendees.length !== 1 ? 's' : ''}
                   </span>
                 )}
-                {/* Arrow hint on hover */}
                 <ArrowRight size={10} className="text-mail-subtle opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
               </div>
             </div>
@@ -460,7 +401,7 @@ function RelatedEmailsPanel({ event, onClose }: { event: PreparedEvent; onClose:
 }
 
 // ---------------------------------------------------------------------------
-// Attendee Card (simplified for new API)
+// Attendee Card
 // ---------------------------------------------------------------------------
 
 function AttendeeCard({ attendee: a, aiNote }: { attendee: AttendeePrep; aiNote: string | null }) {
@@ -470,7 +411,6 @@ function AttendeeCard({ attendee: a, aiNote }: { attendee: AttendeePrep; aiNote:
 
   return (
     <div className="py-3 border-b border-mail-border last:border-b-0">
-      {/* Header */}
       <div className="flex items-center gap-2.5 mb-2">
         <div className="w-8 h-8 rounded-full bg-mail-hover flex items-center justify-center text-[11px] font-bold text-mail-muted shrink-0">
           {display.slice(0, 2).toUpperCase()}
@@ -490,10 +430,8 @@ function AttendeeCard({ attendee: a, aiNote }: { attendee: AttendeePrep; aiNote:
           </span>
         </div>
       </div>
-
-      {/* AI note */}
       {aiNote ? (
-        <div className="text-[12px] text-mail-muted leading-relaxed ml-[42px] px-3 py-2 rounded-md border-l-2 border-mail-accent/30 bg-mail-accent-soft/20">
+        <div className="text-[12px] text-mail-muted leading-relaxed ml-[42px] px-3 py-2 rounded-md border-l-2 border-mail-border bg-mail-surface">
           {aiNote}
         </div>
       ) : (
@@ -507,10 +445,10 @@ function AttendeeCard({ attendee: a, aiNote }: { attendee: AttendeePrep; aiNote:
 // Shared
 // ---------------------------------------------------------------------------
 
-function PrepSection({ icon: Icon, title, color, accent, children }: { icon: React.ElementType; title: string; color: string; accent?: boolean; children: React.ReactNode }) {
+function PrepSection({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <div className="mt-3 px-4 py-3 rounded-lg border" style={{ background: accent ? `color-mix(in srgb, ${color} 4%, transparent)` : 'transparent', borderColor: accent ? `color-mix(in srgb, ${color} 12%, transparent)` : 'var(--mail-border)' }}>
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color }}>
+    <div className="mt-3 px-4 py-3 rounded-lg border border-mail-border bg-mail-surface">
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-mail-card-header mb-2">
         <Icon size={13} /> {title}
       </div>
       {children}

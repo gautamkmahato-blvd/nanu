@@ -10,6 +10,10 @@
 //   /mails/*   → redirect to /login if no session cookie
 //   /api/v1/*  → return 401 JSON if no session cookie
 //
+// Public routes (no auth):
+//   /book/*        → public booking pages
+//   /api/public/*  → public booking APIs
+//
 // Special cases:
 //   /login     → redirect to /mails/v1/dashboard if already logged in
 //   /api/auth/ → always pass through (auth flow must work without session)
@@ -26,6 +30,11 @@ function hasSession(request: NextRequest): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // --- Public booking routes: always pass through (no auth) ---
+  if (pathname.startsWith('/book') || pathname.startsWith('/api/public/')) {
+    return NextResponse.next();
+  }
 
   // --- /login: redirect away if already authenticated ---
   if (pathname === '/login') {
@@ -66,6 +75,8 @@ export const config = {
   matcher: [
     '/mails/:path*',
     '/api/v1/:path*',
+    '/api/public/:path*',
+    '/book/:path*',
     '/login',
   ],
 };

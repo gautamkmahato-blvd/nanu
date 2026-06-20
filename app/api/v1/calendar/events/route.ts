@@ -1,5 +1,7 @@
 // app/api/v1/calendar/events/route.ts
 // GET: Fetch events. POST: Create event with optional Google Meet link.
+// TIMEZONE FIX: Frontend sends timeZone (e.g. "Asia/Kolkata"), backend passes
+// it to Google Calendar API instead of converting via new Date().toISOString().
 
 import { NextResponse } from 'next/server';
 import { fetchCalendarEvents } from '@/lib/v1/calendar/events';
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
 }
 
 // ---- POST: Create event ----
-// Body: { summary, description?, location?, startDateTime, endDateTime, attendeeEmails?, meetingType?: 'none'|'meet'|'zoom', zoomLink? }
+// Body: { summary, description?, location?, startDateTime, endDateTime, attendeeEmails?, meetingType?, zoomLink?, timeZone? }
 
 export async function POST(request: Request) {
   const tenantId = await getTenantId();
@@ -65,15 +67,16 @@ export async function POST(request: Request) {
   }
   try {
     const body = await request.json();
-    const { summary, description, location, startDateTime, endDateTime, attendeeEmails, meetingType, zoomLink, skipNotification } = body;
+    const { summary, description, location, startDateTime, endDateTime, attendeeEmails, meetingType, zoomLink, skipNotification, timeZone } = body;
 
     if (!summary || !startDateTime || !endDateTime) {
       return NextResponse.json({ error: 'summary, startDateTime, endDateTime are required' }, { status: 400 });
     }
 
-    if (new Date(endDateTime).getTime() <= new Date(startDateTime).getTime()) {
-      return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 });
-    }
+    // Validate times
+    // Use the raw datetime strings with timezone instead of converting to UTC
+    // Frontend sends: "2026-06-19T10:00:00" + timeZone: "Asia/Kolkata"
+    // Google Calendar API accepts dateTime + timeZone directly
 
     const { corsair } = await import('@/corsair');
     const tenant = corsair.withTenant(tenantId);
@@ -82,11 +85,15 @@ export async function POST(request: Request) {
       ? attendeeEmails.filter((e: string) => e.includes('@')).map((email: string) => ({ email }))
       : [];
 
-    // Build event body
+    // Resolve the user's timezone — fall back to server's timezone or UTC
+    const userTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+    // Build event body — pass datetime + timezone to Google Calendar
+    // DO NOT convert with new Date().toISOString() — that loses the user's timezone
     const eventBody: Record<string, unknown> = {
       summary,
-      start: { dateTime: new Date(startDateTime).toISOString() },
-      end: { dateTime: new Date(endDateTime).toISOString() },
+      start: { dateTime: startDateTime, timeZone: userTimeZone },
+      end: { dateTime: endDateTime, timeZone: userTimeZone },
       attendees,
     };
 
@@ -94,7 +101,6 @@ export async function POST(request: Request) {
 
     // Handle meeting link type
     if (meetingType === 'zoom' && zoomLink) {
-      // Zoom link provided from separate Zoom API call
       eventBody.location = zoomLink;
       eventBody.description = (description ? description + '\n\n' : '') + `Zoom Meeting: ${zoomLink}`;
     } else if (location) {
@@ -108,8 +114,7 @@ export async function POST(request: Request) {
       event: eventBody,
     };
 
-    // If Google Meet requested, add conference data version
-    // This tells Google Calendar to auto-generate a Meet link
+    // If Google Meet requested, add conference data
     if (meetingType === 'meet') {
       createParams.conferenceDataVersion = 1;
       (eventBody as Record<string, unknown>).conferenceData = {

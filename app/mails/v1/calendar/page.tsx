@@ -423,45 +423,342 @@ function DetailPanel({ event, isImportant, onToggleImportant, onClose }: { event
 // Create panel
 // ---------------------------------------------------------------------------
 
+// Replace the existing CreatePanel function in app/mails/v1/calendar/page.tsx
+// Fixes: timezone bug, time picker, date picker styling, participant tags, zoom disabled
+
+// Add these to the existing imports at the top of calendar/page.tsx:
+// import { Plus } from 'lucide-react';  (if not already imported)
+
+// ---------------------------------------------------------------------------
+// Time options — every 30 minutes
+// ---------------------------------------------------------------------------
+
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2);
+  const m = i % 2 === 0 ? 0 : 30;
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  const value = `${hh}:${mm}`;
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const label = `${hour12}:${mm} ${ampm}`;
+  return { value, label };
+});
+
+for (let h = 0; h < 24; h++) {
+  for (const m of [0, 30]) {
+    const hh = String(h).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    const value = `${hh}:${mm}`;
+    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const label = `${hour12}:${mm} ${ampm}`;
+    TIME_OPTIONS.push({ value, label });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Get browser timezone offset string (e.g. "+05:30", "-07:00")
+// ---------------------------------------------------------------------------
+
+
+
+// ---------------------------------------------------------------------------
+// Create panel
+// ---------------------------------------------------------------------------
+
+// Replace the existing CreatePanel function in app/mails/v1/calendar/page.tsx
+// Fixes: timezone, time dropdown, date dark mode, participant tags, zoom disabled,
+// select arrow alignment, calendar icon dark mode, green accent on selections
+
+// ---------------------------------------------------------------------------
+// Time options — every 30 minutes
+// ---------------------------------------------------------------------------
+
+for (let h = 0; h < 24; h++) {
+  for (const m of [0, 30]) {
+    const hh = String(h).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    const value = `${hh}:${mm}`;
+    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const label = `${hour12}:${mm} ${ampm}`;
+    TIME_OPTIONS.push({ value, label });
+  }
+}
+
+
+// Shared select styles — fixes arrow alignment and dark mode
+const selectClass = `
+  w-full px-3 py-2.5 pr-9 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px]
+  outline-none focus:border-mail-accent/40 transition-colors cursor-pointer
+  appearance-none bg-no-repeat bg-[length:14px_14px] bg-[position:right_10px_center]
+`.trim();
+
+// Inline SVG chevron for selects (works in both light and dark)
+const selectChevron = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
+
+// ---------------------------------------------------------------------------
+// Create panel
+// ---------------------------------------------------------------------------
+
+// Replace the existing CreatePanel function in app/mails/v1/calendar/page.tsx
+// Fixes: timezone, hour/min/ampm time picker, date dark mode, participant tags, zoom disabled
+
+// ---------------------------------------------------------------------------
+// Time picker helpers
+// --------------------------------------------------------------------------
+
+// Replace the existing CreatePanel + helpers in app/mails/v1/calendar/page.tsx
+// Time picker: spinner-style with up/down arrows + direct typing
+// Full validation: end > start, valid ranges, edge cases
+
+// ---------------------------------------------------------------------------
+// Time helpers
+// ---------------------------------------------------------------------------
+
+
+
+// ---------------------------------------------------------------------------
+// Spinner segment — single column with up/down arrows + editable value
+// ---------------------------------------------------------------------------
+
+function SpinnerSegment({
+  value,
+  displayValue,
+  onUp,
+  onDown,
+  onType,
+  width = 'w-[52px]',
+}: {
+  value: string;
+  displayValue: string;
+  onUp: () => void;
+  onDown: () => void;
+  onType?: (raw: string) => void;
+  width?: string;
+}) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); onUp(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); onDown(); }
+  };
+
+  return (
+    <div className={`flex flex-col items-center ${width}`}>
+      {/* Up arrow */}
+      <button
+        type="button"
+        onClick={onUp}
+        tabIndex={-1}
+        className="w-full flex items-center justify-center h-6 text-mail-subtle hover:text-mail-muted transition-colors cursor-pointer border-none bg-transparent"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      </button>
+
+      {/* Value */}
+      {onType ? (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={displayValue}
+          onChange={(e) => onType(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={handleKeyDown}
+          className="w-full text-center text-[16px] font-semibold text-mail-text bg-transparent border-none outline-none py-1 font-mono"
+          maxLength={2}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={onUp}
+          onKeyDown={handleKeyDown}
+          className="w-full text-center text-[16px] font-semibold text-mail-text bg-transparent border-none outline-none py-1 font-mono cursor-pointer"
+        >
+          {displayValue}
+        </button>
+      )}
+
+      {/* Down arrow */}
+      <button
+        type="button"
+        onClick={onDown}
+        tabIndex={-1}
+        className="w-full flex items-center justify-center h-6 text-mail-subtle hover:text-mail-muted transition-colors cursor-pointer border-none bg-transparent"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TimePicker — HH : MM  AM/PM with spinners
+// ---------------------------------------------------------------------------
+
+
+
+// ---------------------------------------------------------------------------
+// Create panel
+// ---------------------------------------------------------------------------
+
+// Replace the existing CreatePanel + helpers in app/mails/v1/calendar/page.tsx
+
+// ---------------------------------------------------------------------------
+// Time helpers
+// ---------------------------------------------------------------------------
+
+function parse24To12(time24: string): { hour: number; minute: number; ampm: 'AM' | 'PM' } {
+  const [hh, mm] = time24.split(':').map(Number);
+  const ampm: 'AM' | 'PM' = hh >= 12 ? 'PM' : 'AM';
+  const hour = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+  return { hour, minute: mm, ampm };
+}
+
+function to24(hour: number, minute: number, ampm: 'AM' | 'PM'): string {
+  let h = hour;
+  if (ampm === 'AM' && h === 12) h = 0;
+  else if (ampm === 'PM' && h !== 12) h += 12;
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function toMinutes(time24: string): number {
+  const [h, m] = time24.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function addOneHour(time24: string): string {
+  const [hh, mm] = time24.split(':').map(Number);
+  return `${String((hh + 1) % 24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function getLocalTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// ---------------------------------------------------------------------------
+// Compact spinner segment
+// ---------------------------------------------------------------------------
+
+function Spin({ value, onUp, onDown, onType, w = 'w-8' }: {
+  value: string; onUp: () => void; onDown: () => void; onType?: (v: string) => void; w?: string;
+}) {
+  const handleKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); onUp(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); onDown(); }
+  };
+
+  return (
+    <div className={`flex flex-col items-center ${w}`}>
+      <button type="button" onClick={onUp} tabIndex={-1}
+        className="w-full flex items-center justify-center h-4 text-mail-subtle hover:text-mail-muted cursor-pointer border-none bg-transparent">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      </button>
+      {onType ? (
+        <input type="text" inputMode="numeric" value={value}
+          onChange={(e) => onType(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={handleKey}
+          className="w-full text-center text-[13px] font-semibold text-mail-text bg-transparent border-none outline-none py-0.5 font-mono"
+          maxLength={2} />
+      ) : (
+        <button type="button" onClick={onUp} onKeyDown={handleKey}
+          className="w-full text-center text-[13px] font-semibold text-mail-text bg-transparent border-none outline-none py-0.5 font-mono cursor-pointer">
+          {value}
+        </button>
+      )}
+      <button type="button" onClick={onDown} tabIndex={-1}
+        className="w-full flex items-center justify-center h-4 text-mail-subtle hover:text-mail-muted cursor-pointer border-none bg-transparent">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compact TimePicker
+// ---------------------------------------------------------------------------
+
+function TimePicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const { hour, minute, ampm } = parse24To12(value);
+  const setH = (h: number) => onChange(to24(h, minute, ampm));
+  const setM = (m: number) => onChange(to24(hour, m, ampm));
+  const flip = () => onChange(to24(hour, minute, ampm === 'AM' ? 'PM' : 'AM'));
+
+  const hUp = () => setH(hour >= 12 ? 1 : hour + 1);
+  const hDown = () => setH(hour <= 1 ? 12 : hour - 1);
+  const mUp = () => { const n = minute + 5; if (n >= 60) { setM(0); hUp(); } else setM(n); };
+  const mDown = () => { const n = minute - 5; if (n < 0) { setM(55); hDown(); } else setM(n); };
+
+  const typeH = (r: string) => { if (!r) return; const n = parseInt(r.slice(-2), 10); if (n >= 1 && n <= 12) setH(n); };
+  const typeM = (r: string) => { if (!r) return; const n = parseInt(r.slice(-2), 10); if (n >= 0 && n <= 59) setM(n); };
+
+  return (
+    <div className="flex-1 min-w-0">
+      <Label>{label}</Label>
+      <div className="flex items-center rounded-lg border border-mail-border bg-mail-bg px-1.5 py-1">
+        <Spin value={String(hour).padStart(2, '0')} onUp={hUp} onDown={hDown} onType={typeH} />
+        <span className="text-[13px] font-semibold text-mail-subtle font-mono select-none">:</span>
+        <Spin value={String(minute).padStart(2, '0')} onUp={mUp} onDown={mDown} onType={typeM} />
+        <Spin value={ampm} onUp={flip} onDown={flip} w="w-8" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Create panel
+// ---------------------------------------------------------------------------
+
 function CreatePanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(toLocalKey(new Date()));
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('11:00');
-  const [attendees, setAttendees] = useState('');
+  const [attendeeTags, setAttendeeTags] = useState<string[]>([]);
+  const [attendeeInput, setAttendeeInput] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [meetingType, setMeetingType] = useState<'none' | 'meet' | 'zoom' | 'custom'>('none');
+  const [meetingType, setMeetingType] = useState<'none' | 'meet' | 'custom'>('none');
   const [customLink, setCustomLink] = useState('');
-  const [zoomLink, setZoomLink] = useState('');
-  const [zoomLoading, setZoomLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [success, setSuccess] = useState<string | null>(null);
-  const [descLoading, setDescLoading] = useState(false);
+  const [timeError, setTimeError] = useState('');
 
-  const generateZoom = async () => {
-    setZoomLoading(true); setErr('');
-    try {
-      const res = await fetch('/api/v1/calendar/zoom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: title || 'Meeting', duration: 60 }) });
-      const data = await res.json();
-      if (!res.ok) { if (data.fallback) { setErr('Zoom not configured.'); setMeetingType('custom'); } else throw new Error(data.error ?? 'Failed'); return; }
-      setZoomLink(data.joinUrl);
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed'); }
-    finally { setZoomLoading(false); }
+  const validateTimes = (s: string, e: string): boolean => {
+    if (toMinutes(e) <= toMinutes(s)) { setTimeError('End must be after start'); return false; }
+    setTimeError(''); return true;
   };
 
+  const handleStartChange = (v: string) => { setStartTime(v); setEndTime(addOneHour(v)); setTimeError(''); };
+  const handleEndChange = (v: string) => { setEndTime(v); validateTimes(startTime, v); };
+
+  const addAttendee = (raw: string) => {
+    const emails = raw.split(/[,;\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const valid = emails.filter((e) => e.includes('@') && e.includes('.'));
+    if (valid.length === 0) return;
+    setAttendeeTags((prev) => { const ex = new Set(prev); return [...prev, ...valid.filter((e) => !ex.has(e))]; });
+    setAttendeeInput('');
+  };
+  const removeAttendee = (email: string) => setAttendeeTags((prev) => prev.filter((t) => t !== email));
+
+  const handleAttendeeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab') { e.preventDefault(); if (attendeeInput.trim()) addAttendee(attendeeInput); }
+    if (e.key === 'Backspace' && !attendeeInput && attendeeTags.length > 0) setAttendeeTags((prev) => prev.slice(0, -1));
+  };
+  const handleAttendeePaste = (e: React.ClipboardEvent) => { e.preventDefault(); addAttendee(e.clipboardData.getData('text')); };
+
   const handleCreate = async () => {
-    if (!title.trim()) { setErr('Title required'); return; }
+    if (!title.trim()) { setErr('Title is required'); return; }
+    if (!validateTimes(startTime, endTime)) return;
     setSaving(true); setErr('');
     try {
-      const startDT = `${date}T${startTime}:00`; const endDT = `${date}T${endTime}:00`;
-      const emails = attendees.split(',').map((s) => s.trim()).filter(Boolean);
-      const payload: Record<string, unknown> = { summary: title.trim(), startDateTime: startDT, endDateTime: endDT, attendeeEmails: emails, meetingType };
+      const payload: Record<string, unknown> = {
+        summary: title.trim(), startDateTime: `${date}T${startTime}:00`, endDateTime: `${date}T${endTime}:00`,
+        attendeeEmails: attendeeTags, meetingType, timeZone: getLocalTimezone(),
+      };
       if (description) payload.description = description;
-      if (meetingType === 'zoom' && zoomLink) payload.zoomLink = zoomLink;
       if (meetingType === 'custom' && customLink) payload.location = customLink;
       if (meetingType === 'none' && location) payload.location = location;
+
       const res = await fetch('/api/v1/calendar/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed');
       const data = await res.json();
@@ -471,32 +768,11 @@ function CreatePanel({ onClose, onCreated }: { onClose: () => void; onCreated: (
     finally { setSaving(false); }
   };
 
-  const generateDescription = async () => {
-    setDescLoading(true);
-    try {
-      const emails = attendees.split(',').map((s) => s.trim()).filter(Boolean);
-      const res = await fetch('/api/v1/ai-agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `Generate a brief meeting agenda for: "${title || 'Meeting'}". Attendees: ${emails.length > 0 ? emails.join(', ') : 'TBD'}. Include purpose, discussion points, and action items. Keep it concise.`,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      setDescription(data.message ?? '');
-    } catch {
-      setDescription('Failed to generate.');
-    } finally {
-      setDescLoading(false);
-    }
-  };
-
-  const meetOpts: { key: typeof meetingType; label: string; icon: React.ElementType; color: string }[] = [
-    { key: 'none', label: 'No Link', icon: X, color: '#6b7280' },
-    { key: 'meet', label: 'Google Meet', icon: Video, color: '#22c55e' },
-    { key: 'zoom', label: 'Zoom', icon: Globe, color: '#2d8cf0' },
-    { key: 'custom', label: 'Custom URL', icon: Link2, color: '#a78bfa' },
+  const meetOpts: { key: typeof meetingType | 'zoom'; label: string; icon: React.ElementType; disabled?: boolean; tooltip?: string }[] = [
+    { key: 'none', label: 'No Link', icon: X },
+    { key: 'meet', label: 'Google Meet', icon: Video },
+    { key: 'zoom', label: 'Zoom', icon: Globe, disabled: true, tooltip: 'Coming soon' },
+    { key: 'custom', label: 'Custom URL', icon: Link2 },
   ];
 
   if (success) return (
@@ -504,7 +780,9 @@ function CreatePanel({ onClose, onCreated }: { onClose: () => void; onCreated: (
       <CheckCircle size={40} className="text-green-400 mx-auto mb-3" />
       <h3 className="text-base font-semibold text-green-400 m-0 mb-2">Event Created!</h3>
       <a href={success} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 break-all">{success}</a>
-      <button onClick={() => navigator.clipboard.writeText(success)} className="flex items-center gap-1.5 mx-auto mt-3 px-3 py-1.5 rounded-md border border-mail-border bg-transparent text-mail-muted text-[11px] cursor-pointer hover:bg-mail-hover transition-colors"><Copy size={12} /> Copy Link</button>
+      <button onClick={() => navigator.clipboard.writeText(success)} className="flex items-center gap-1.5 mx-auto mt-3 px-3 py-1.5 rounded-md border border-mail-border bg-transparent text-mail-muted text-[11px] cursor-pointer hover:bg-mail-hover transition-colors">
+        <Copy size={12} /> Copy Link
+      </button>
     </div>
   );
 
@@ -515,46 +793,78 @@ function CreatePanel({ onClose, onCreated }: { onClose: () => void; onCreated: (
         <button onClick={onClose} className="p-1.5 rounded-md text-mail-subtle hover:text-mail-muted hover:bg-mail-hover transition-colors cursor-pointer border-none bg-transparent"><X size={15} /></button>
       </div>
 
-      <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-4">
         <div>
           <Label>Title</Label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting title..." autoFocus className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none focus:border-mail-accent/40 transition-colors" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting title..." autoFocus
+            className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none focus:border-mail-accent/40 transition-colors" />
         </div>
+
         <div>
           <Label>Date</Label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none focus:border-mail-accent/40 transition-colors" />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ colorScheme: 'dark' }}
+            className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none focus:border-mail-accent/40 transition-colors" />
         </div>
+
         <div className="flex gap-2">
-          <div className="flex-1"><Label>Start</Label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none" /></div>
-          <div className="flex-1"><Label>End</Label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none" /></div>
+          <TimePicker label="Start" value={startTime} onChange={handleStartChange} />
+          <TimePicker label="End" value={endTime} onChange={handleEndChange} />
         </div>
+        {timeError && <div className="text-[11px] text-red-400 -mt-2">{timeError}</div>}
+
         <div>
           <Label>Participants</Label>
-          <input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="email1, email2" className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none" />
+          <div className="min-h-[42px] px-2 py-1.5 rounded-lg border border-mail-border bg-mail-bg flex flex-wrap items-center gap-1.5 focus-within:border-mail-accent/40 transition-colors">
+            {attendeeTags.map((email) => (
+              <span key={email} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-mail-accent-soft text-mail-accent">
+                {email}
+                <button onClick={() => removeAttendee(email)} className="p-0 border-none bg-transparent text-mail-accent cursor-pointer leading-none hover:text-red-400"><X size={10} /></button>
+              </span>
+            ))}
+            <input value={attendeeInput} onChange={(e) => setAttendeeInput(e.target.value)}
+              onKeyDown={handleAttendeeKeyDown} onPaste={handleAttendeePaste}
+              onBlur={() => { if (attendeeInput.trim()) addAttendee(attendeeInput); }}
+              placeholder={attendeeTags.length === 0 ? 'Type email and press Enter...' : 'Add more...'}
+              className="flex-1 min-w-[100px] bg-transparent text-mail-text text-[12px] outline-none border-none py-1 placeholder:text-mail-subtle" />
+          </div>
+          <div className="text-[10px] text-mail-subtle mt-1">Press Enter, comma, or Tab to add. Paste multiple emails at once.</div>
         </div>
+
         <div>
           <Label>Meeting Link</Label>
           <div className="grid grid-cols-2 gap-1.5">
-            {meetOpts.map((opt) => { const Icon = opt.icon; const sel = meetingType === opt.key; return (
-              <button key={opt.key} onClick={() => { setMeetingType(opt.key); setErr(''); }}
-                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-medium cursor-pointer border transition-colors"
-                style={{ borderColor: sel ? opt.color : 'var(--mail-border)', background: sel ? `${opt.color}12` : 'transparent', color: sel ? opt.color : 'var(--mail-subtle)' }}>
-                <Icon size={12} /> {opt.label}
-              </button>
-            ); })}
+            {meetOpts.map((opt) => {
+              const Icon = opt.icon;
+              if (opt.disabled) return (
+                <div key={opt.key} className="flex flex-col items-center justify-center gap-0.5 py-2 rounded-lg text-[11px] font-medium border border-mail-border opacity-40 cursor-not-allowed">
+                  <div className="flex items-center gap-1.5 text-mail-subtle"><Icon size={12} /> {opt.label}</div>
+                  <span className="text-[9px] text-mail-subtle italic">{opt.tooltip}</span>
+                </div>
+              );
+              const colorMap: Record<string, string> = { none: '#6b7280', meet: '#22c55e', custom: '#a78bfa' };
+              const color = colorMap[opt.key] ?? '#6b7280';
+              const sel = meetingType === opt.key;
+              return (
+                <button key={opt.key} onClick={() => { setMeetingType(opt.key as typeof meetingType); setErr(''); }}
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-medium cursor-pointer border transition-colors"
+                  style={{ borderColor: sel ? color : 'var(--mail-border)', background: sel ? `${color}12` : 'transparent', color: sel ? color : 'var(--mail-subtle)' }}>
+                  <Icon size={12} /> {opt.label}
+                </button>
+              );
+            })}
           </div>
-          {meetingType === 'meet' && <div className="flex items-center gap-1.5 mt-2 text-[10px] text-green-400"><Video size={10} /> Auto-generated on create</div>}
-          {meetingType === 'zoom' && !zoomLink && <button onClick={generateZoom} disabled={zoomLoading} className="w-full mt-2 py-2 rounded-lg border text-[11px] cursor-pointer transition-colors" style={{ borderColor: '#2d8cf030', background: '#2d8cf008', color: '#2d8cf0' }}>{zoomLoading ? 'Creating...' : 'Generate Zoom Link'}</button>}
-          {meetingType === 'zoom' && zoomLink && <div className="mt-2 text-[10px] text-blue-400 truncate">✅ {zoomLink}</div>}
-          {meetingType === 'custom' && <input value={customLink} onChange={(e) => setCustomLink(e.target.value)} placeholder="https://..." className="w-full mt-2 px-3 py-2 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[11px] outline-none" />}
+          {meetingType === 'meet' && <div className="flex items-center gap-1.5 mt-2 text-[10px] text-green-400"><Video size={10} /> Google Meet link will be auto-generated</div>}
+          {meetingType === 'custom' && <input value={customLink} onChange={(e) => setCustomLink(e.target.value)} placeholder="https://..."
+            className="w-full mt-2 px-3 py-2 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[11px] outline-none focus:border-mail-accent/40 transition-colors" />}
         </div>
-        {meetingType === 'none' && <div><Label>Location</Label><input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office or room" className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none" /></div>}
+
+        {meetingType === 'none' && <div><Label>Location</Label><input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office or room"
+          className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none focus:border-mail-accent/40 transition-colors" /></div>}
+
         <div>
-        {/* <button onClick={generateDescription} disabled={descLoading}
-          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border border-mail-accent/20 bg-mail-accent-soft text-mail-accent cursor-pointer hover:bg-mail-accent/15 transition-colors disabled:opacity-60">
-          <Sparkles size={10} /> {descLoading ? 'Generating...' : 'AI Generate'}
-        </button> */}
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add notes..." rows={3} className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none resize-y font-[inherit]" />
+          <Label>Notes</Label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add meeting notes or agenda..." rows={3}
+            className="w-full px-3 py-2.5 rounded-lg border border-mail-border bg-mail-bg text-mail-text text-[13px] outline-none resize-y font-[inherit] focus:border-mail-accent/40 transition-colors" />
         </div>
       </div>
 
@@ -562,8 +872,8 @@ function CreatePanel({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
       <div className="flex gap-2 mt-5">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-lg border border-mail-border bg-transparent text-mail-subtle text-xs cursor-pointer hover:bg-mail-hover transition-colors">Cancel</button>
-        <button onClick={handleCreate} disabled={saving || !title.trim()}
-          className={`flex-1 py-2.5 rounded-lg border-none text-xs font-semibold cursor-pointer transition-all ${title.trim() ? 'bg-mail-accent hover:bg-mail-accent-hover text-white' : 'bg-mail-chip text-mail-subtle cursor-default'} disabled:opacity-60`}>
+        <button onClick={handleCreate} disabled={saving || !title.trim() || !!timeError}
+          className={`flex-1 py-2.5 rounded-lg border-none text-xs font-semibold cursor-pointer transition-all ${title.trim() && !timeError ? 'bg-mail-accent hover:bg-mail-accent-hover text-white' : 'bg-mail-chip text-mail-subtle cursor-default'} disabled:opacity-60`}>
           {saving ? 'Creating...' : 'Create Event'}
         </button>
       </div>
