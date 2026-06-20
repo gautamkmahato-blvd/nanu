@@ -140,38 +140,41 @@ async function sendConfirmationEmails(
   const accessToken = await getFreshAccessToken(profile.tenantId, 'gmail');
   if (!accessToken) return;
 
+  // Get host's email from Gmail API
+  let hostEmail: string | null = null;
+  try {
+    const meRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (meRes.ok) {
+      const meData = await meRes.json();
+      hostEmail = meData.emailAddress ?? null;
+    }
+  } catch {}
+
   const dateDisplay = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const fmtTime = (t: string) => { const [h, m] = t.split(':').map(Number); const hr = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${hr}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 
-  // Email to guest
   const guestBody = [
-    `Hi ${guestName},`,
-    ``,
-    `Your meeting with ${profile.displayName} is confirmed!`,
-    ``,
+    `Hi ${guestName},`, ``,
+    `Your meeting with ${profile.displayName} is confirmed!`, ``,
     `📅 Date: ${dateDisplay}`,
     `🕐 Time: ${fmtTime(startTime)} - ${fmtTime(endTime)} (${duration} min)`,
     `🌍 Timezone: ${profile.timezone}`,
     meetLink ? `📹 Meeting Link: ${meetLink}` : '',
-    ``,
-    `A calendar invitation has also been sent to your email.`,
-    ``,
-    `— Context Mode`,
+    ``, `A calendar invitation has also been sent to your email.`,
+    ``, `— Context Mode`,
   ].filter(Boolean).join('\n');
 
-  // Email to host
   const hostBody = [
-    `Hi ${profile.displayName},`,
-    ``,
-    `You have a new booking!`,
-    ``,
+    `Hi ${profile.displayName},`, ``,
+    `You have a new booking!`, ``,
     `👤 Guest: ${guestName} (${guestEmail})`,
     `📅 Date: ${dateDisplay}`,
     `🕐 Time: ${fmtTime(startTime)} - ${fmtTime(endTime)} (${duration} min)`,
     meetLink ? `📹 Meeting Link: ${meetLink}` : '',
     notes ? `📝 Notes: ${notes}` : '',
-    ``,
-    `— Context Mode`,
+    ``, `— Context Mode`,
   ].filter(Boolean).join('\n');
 
   const sendMail = async (to: string, subject: string, body: string) => {
@@ -185,8 +188,6 @@ async function sendConfirmationEmails(
 
   await Promise.allSettled([
     sendMail(guestEmail, `Meeting Confirmed: ${dateDisplay} at ${fmtTime(startTime)}`, guestBody),
-    sendMail(guestEmail, `New Booking: ${guestName} on ${dateDisplay}`, hostBody),
-    // Note: host email is sent to guestEmail above as a workaround since we send FROM the host's Gmail.
-    // The host sees this in their Sent folder automatically.
+    hostEmail ? sendMail(hostEmail, `New Booking: ${guestName} on ${dateDisplay}`, hostBody) : Promise.resolve(),
   ]);
 }

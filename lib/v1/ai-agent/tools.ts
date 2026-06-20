@@ -50,10 +50,8 @@ export async function initializeTools(hasEmailContext: boolean): Promise<OpenAIT
 // ---------------------------------------------------------------------------
 
 async function loadCorsairMcpTools(): Promise<void> {
-  // ALWAYS register manual tools first
   registerManualCorsairTools();
 
-  // Then TRY to load Corsair MCP tools alongside (optional extras)
   try {
     const { AnthropicProvider } = await import('@corsair-dev/mcp');
     const provider = new AnthropicProvider();
@@ -89,7 +87,6 @@ async function loadCorsairMcpTools(): Promise<void> {
       DESTRUCTIVE_TOOLS.add('run_script');
     }
   } catch (err) {
-    // Manual tools already registered above — nothing else needed
     console.log('[ai-agent] @corsair-dev/mcp not available, using manual tools only');
   }
 }
@@ -145,7 +142,7 @@ function registerManualCorsairTools(): void {
         type: 'function',
         function: {
           name: 'create_event',
-          description: 'Create a Google Calendar event with optional Google Meet link.',
+          description: 'Create a Google Calendar event with optional Google Meet link. Automatically checks for conflicts before creating.',
           parameters: {
             type: 'object',
             properties: {
@@ -166,6 +163,68 @@ function registerManualCorsairTools(): void {
         const attendees = ((args.attendeeEmails as string[]) ?? []).filter((e) => e.includes('@')).map((email) => ({ email }));
         const startISO = ensureISO(args.startDateTime as string);
         const endISO = ensureISO(args.endDateTime as string);
+
+        // ── Validate time range ──
+        const startMs = new Date(startISO).getTime();
+        const endMs = new Date(endISO).getTime();
+
+        if (endMs <= startMs) {
+          return { success: false, data: null, error: 'End time must be after start time.' };
+        }
+
+        const durationMin = (endMs - startMs) / 60000;
+        if (durationMin > 480) {
+          return { success: false, data: null, error: 'Event duration cannot exceed 8 hours.' };
+        }
+
+        // Don't allow creating events in the past
+        if (startMs < Date.now() - 5 * 60000) {
+          return { success: false, data: null, error: 'Cannot create events in the past. Please choose a future time.' };
+        }
+
+        // ── Conflict check — prevent double-booking ──
+        try {
+          const existing = await tenant.googlecalendar.api.events.getMany({
+            calendarId: 'primary',
+            timeMin: startISO,
+            timeMax: endISO,
+            singleEvents: true,
+            maxResults: 10,
+          } as any);
+
+          const items = ((existing as any)?.items ?? existing) as any[];
+          if (Array.isArray(items) && items.length > 0) {
+            // Filter to only actual time-based events (skip all-day events)
+            const overlapping = items.filter((e: any) => {
+              if (!e.start?.dateTime || !e.end?.dateTime) return false;
+              const eStart = new Date(e.start.dateTime).getTime();
+              const eEnd = new Date(e.end.dateTime).getTime();
+              // True overlap: event starts before our end AND event ends after our start
+              return eStart < endMs && eEnd > startMs;
+            });
+
+            if (overlapping.length > 0) {
+              const conflicts = overlapping.map((e: any) => {
+                const eStart = new Date(e.start.dateTime);
+                const eEnd = new Date(e.end.dateTime);
+                const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                return `"${e.summary ?? 'Untitled'}" (${fmtTime(eStart)} – ${fmtTime(eEnd)})`;
+              }).slice(0, 3);
+
+              return {
+                success: false,
+                data: { conflicts, conflictCount: overlapping.length },
+                error: `Time conflict! You already have ${overlapping.length} event${overlapping.length > 1 ? 's' : ''} during this slot: ${conflicts.join(', ')}. Please use check_availability to find an open time, or choose a different slot.`,
+              };
+            }
+          }
+        } catch (err) {
+          // If conflict check fails, log but allow creation to proceed
+          // Better to create a potentially conflicting event than to block all creation
+          console.warn('[ai-agent:create_event] conflict check failed, proceeding:', err instanceof Error ? err.message : err);
+        }
+
+        // ── Create event ──
         const eventBody: Record<string, unknown> = { summary: args.summary, start: { dateTime: startISO }, end: { dateTime: endISO }, attendees };
         if (args.description) eventBody.description = args.description;
         const createParams: Record<string, unknown> = { calendarId: 'primary', sendUpdates: 'all', event: eventBody };
@@ -287,7 +346,7 @@ function registerManualCorsairTools(): void {
 // ---------------------------------------------------------------------------
 
 function registerCustomTools(): void {
-  // --- search_inbox: AI-powered email search ---
+  // --- search_inbox ---
   _allOpenAITools.push({
     type: 'function',
     function: {
@@ -313,7 +372,7 @@ function registerCustomTools(): void {
     };
   });
 
-  // --- search_assets: find files, documents, and links from emails ---
+  // --- search_assets ---
   _allOpenAITools.push({
     type: 'function',
     function: {
@@ -328,29 +387,29 @@ function registerCustomTools(): void {
         properties: {
           query: {
             type: 'string',
-            description: 'Search text to match filenames, URLs, or email subjects. Use specific terms like the filename, sender name, or topic.',
+            description: 'Search text to match filenames, URLs, or email subjects.',
           },
           category: {
             type: 'string',
             enum: ['pdf', 'image', 'document', 'spreadsheet', 'presentation', 'archive', 'video', 'audio', 'code', 'other'],
-            description: 'Filter by file type category. Only set this when the user explicitly mentions a file type.',
+            description: 'Filter by file type category. Only set when the user explicitly mentions a file type.',
           },
           from: {
             type: 'string',
-            description: 'Filter by sender email address. Use when the user says "from [person]" or "that [person] sent".',
+            description: 'Filter by sender email address.',
           },
           asset_type: {
             type: 'string',
             enum: ['attachment', 'link'],
-            description: 'Filter by attachment (files attached to emails) or link (URLs shared in email body). Only set when explicitly relevant.',
+            description: 'Filter by attachment or link.',
           },
           domain: {
             type: 'string',
-            description: 'Filter links by domain (e.g. "drive.google.com", "figma.com", "notion.so"). Use when the user mentions a specific service.',
+            description: 'Filter links by domain (e.g. "drive.google.com").',
           },
           days_back: {
             type: 'number',
-            description: 'How many days back to search. Default is all time. Use 7 for "this week", 30 for "this month", 90 for "this quarter".',
+            description: 'How many days back to search. Default is all time.',
           },
         },
         required: [],
@@ -359,35 +418,24 @@ function registerCustomTools(): void {
   });
   executorMap.set('search_assets', async (args, tenantId) => {
     const { getAssets } = await import('@/lib/v1/assets');
-    const { getMimeCategory } = await import('@/lib/v1/assets/types');
 
-    // Build filters from agent args
-    const filters: Record<string, unknown> = {
-      limit: 10,
-      offset: 0,
-    };
+    const filters: Record<string, unknown> = { limit: 10, offset: 0 };
 
     if (args.query && typeof args.query === 'string' && args.query.trim()) {
       filters.search = args.query.trim();
     }
-
     if (args.category && typeof args.category === 'string') {
       filters.mimeCategory = args.category;
     }
-
     if (args.from && typeof args.from === 'string') {
       filters.fromEmail = args.from.trim();
     }
-
     if (args.asset_type && typeof args.asset_type === 'string') {
       filters.assetType = args.asset_type;
     }
-
     if (args.domain && typeof args.domain === 'string') {
       filters.domain = args.domain.trim().toLowerCase();
     }
-
-    // Date range
     if (args.days_back && typeof args.days_back === 'number' && args.days_back > 0) {
       const from = new Date();
       from.setDate(from.getDate() - args.days_back);
@@ -398,14 +446,7 @@ function registerCustomTools(): void {
       const result = await getAssets(tenantId, filters as any);
 
       if (result.assets.length === 0) {
-        return {
-          success: true,
-          data: {
-            message: 'No assets found matching your search.',
-            assetCount: 0,
-            assets: [],
-          },
-        };
+        return { success: true, data: { message: 'No assets found matching your search.', assetCount: 0, assets: [] } };
       }
 
       return {
@@ -414,31 +455,18 @@ function registerCustomTools(): void {
           assetCount: result.total,
           showing: result.assets.length,
           assets: result.assets.map((a) => ({
-            id: a.id,
-            emailId: a.emailId,
-            type: a.assetType,
-            filename: a.filename,
-            url: a.url,
-            mimeCategory: a.mimeCategory,
-            size: a.size,
-            domain: a.domain,
-            fromEmail: a.fromEmail,
-            fromName: a.fromName,
-            subject: a.subject,
-            receivedAt: a.receivedAt,
+            id: a.id, emailId: a.emailId, type: a.assetType, filename: a.filename, url: a.url,
+            mimeCategory: a.mimeCategory, size: a.size, domain: a.domain,
+            fromEmail: a.fromEmail, fromName: a.fromName, subject: a.subject, receivedAt: a.receivedAt,
           })),
         },
       };
     } catch (err) {
-      return {
-        success: false,
-        data: null,
-        error: err instanceof Error ? err.message : 'Asset search failed',
-      };
+      return { success: false, data: null, error: err instanceof Error ? err.message : 'Asset search failed' };
     }
   });
 
-  // --- reply_to_email: reply to current email thread ---
+  // --- reply_to_email ---
   _allOpenAITools.push({
     type: 'function',
     function: {

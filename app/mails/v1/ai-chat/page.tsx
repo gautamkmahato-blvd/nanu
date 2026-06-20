@@ -312,7 +312,7 @@ export default function AIChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                       <span className="text-xs text-mail-subtle font-medium">{msg.role === 'user' ? 'You' : 'Context Mode'}</span>
-                      {msg.toolsUsed?.map((tool) => {
+                      {[...new Set(msg.toolsUsed)]?.map((tool) => {
                         const badge = TOOL_BADGES[tool];
                         if (!badge) return null;
                         const Icon = badge.icon;

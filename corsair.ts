@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import { googlecalendar } from '@corsair-dev/googlecalendar';
 import { gmail } from '@corsair-dev/gmail';
+import { vapi } from '@corsair-dev/vapi';
 import { createCorsair } from 'corsair';
 
 import { handleGmailWebhookEvent } from '@/lib/v1/webhook-handlers';
@@ -35,6 +36,7 @@ export const corsair = createCorsair({
     googlecalendar({
       authType: 'oauth_2',
     }),
+    vapi(),
   ],
   database: pool,
   kek: process.env.CORSAIR_KEK!,
