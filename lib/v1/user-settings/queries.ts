@@ -103,9 +103,25 @@ export async function updateSyncLimit(tenantId: string, limit: number): Promise<
 // ---------------------------------------------------------------------------
 
 /** Increment daily usage counter. Returns new count. */
-export async function incrementUsage(tenantId: string, source: UsageSource): Promise<number> {
+/** Increment daily usage. isByok = true tracks separately, doesn't touch chat_count. */
+export async function incrementUsage(tenantId: string, source: UsageSource, isByok: boolean = false): Promise<number> {
   const sourceCol = source === 'agent' ? 'agent_count' : source === 'search' ? 'search_count' : 'assistant_count';
 
+  if (isByok) {
+    // BYOK: only increment byok_chat_count + source column, NOT chat_count
+    await db.execute(sql.raw(`
+      INSERT INTO ai_usage_daily (tenant_id, usage_date, chat_count, byok_chat_count, ${sourceCol})
+      VALUES ('${tenantId}', CURRENT_DATE, 0, 1, 1)
+      ON CONFLICT (tenant_id, usage_date)
+      DO UPDATE SET
+        byok_chat_count = ai_usage_daily.byok_chat_count + 1,
+        ${sourceCol} = ai_usage_daily.${sourceCol} + 1
+      RETURNING chat_count
+    `));
+    return 0; // doesn't matter for BYOK, they're unlimited
+  }
+
+  // Free tier: increment chat_count + source column
   const result = await db.execute(sql.raw(`
     INSERT INTO ai_usage_daily (tenant_id, usage_date, chat_count, ${sourceCol})
     VALUES ('${tenantId}', CURRENT_DATE, 1, 1)

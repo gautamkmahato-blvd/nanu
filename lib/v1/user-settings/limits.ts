@@ -112,7 +112,7 @@ export async function checkAndConsumeChat(
 
   // BYOK users: unlimited, just track for analytics
   if (isByok) {
-    await incrementUsage(tenantId, source);
+    await incrementUsage(tenantId, source, true); 
     return { allowed: true, remaining: -1 };
   }
 
