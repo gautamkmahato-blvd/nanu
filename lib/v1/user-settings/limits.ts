@@ -110,24 +110,20 @@ export async function checkAndConsumeChat(
 ): Promise<{ allowed: true; remaining: number } | { allowed: false; error: string }> {
   const isByok = await isByokUser(tenantId);
 
-  // BYOK users: unlimited, just track for analytics
+  const result = await incrementUsage(tenantId, source, isByok);
+
   if (isByok) {
-    await incrementUsage(tenantId, source, true); 
     return { allowed: true, remaining: -1 };
   }
 
-  // Free users: check limit
-  const usage = await getDailyUsage(tenantId);
-  if (usage.chatCount >= FREE_CHAT_LIMIT) {
+  if (!result.allowed) {
     return {
       allowed: false,
       error: `Daily AI chat limit reached (${FREE_CHAT_LIMIT}/${FREE_CHAT_LIMIT}). Add your own OpenRouter API key in AI Settings to get unlimited access.`,
     };
   }
 
-  const newCount = await incrementUsage(tenantId, source);
-  const remaining = Math.max(0, FREE_CHAT_LIMIT - newCount);
-  return { allowed: true, remaining };
+  return { allowed: true, remaining: Math.max(0, FREE_CHAT_LIMIT - result.newCount) };
 }
 
 // ---------------------------------------------------------------------------

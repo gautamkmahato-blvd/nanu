@@ -104,11 +104,19 @@ export async function updateSyncLimit(tenantId: string, limit: number): Promise<
 
 /** Increment daily usage counter. Returns new count. */
 /** Increment daily usage. isByok = true tracks separately, doesn't touch chat_count. */
-export async function incrementUsage(tenantId: string, source: UsageSource, isByok: boolean = false): Promise<number> {
+/** 
+ * Atomic check + increment. Returns { allowed, newCount }.
+ * Uses a single SQL statement — no race condition window.
+ */
+export async function incrementUsage(
+  tenantId: string,
+  source: UsageSource,
+  isByok: boolean = false,
+): Promise<{ allowed: boolean; newCount: number }> {
+  // Map source to column name (safe — these are hardcoded, not user input)
   const sourceCol = source === 'agent' ? 'agent_count' : source === 'search' ? 'search_count' : 'assistant_count';
 
   if (isByok) {
-    // BYOK: only increment byok_chat_count + source column, NOT chat_count
     await db.execute(sql.raw(`
       INSERT INTO ai_usage_daily (tenant_id, usage_date, chat_count, byok_chat_count, ${sourceCol})
       VALUES ('${tenantId}', CURRENT_DATE, 0, 1, 1)
@@ -116,12 +124,11 @@ export async function incrementUsage(tenantId: string, source: UsageSource, isBy
       DO UPDATE SET
         byok_chat_count = ai_usage_daily.byok_chat_count + 1,
         ${sourceCol} = ai_usage_daily.${sourceCol} + 1
-      RETURNING chat_count
     `));
-    return 0; // doesn't matter for BYOK, they're unlimited
+    return { allowed: true, newCount: 0 };
   }
 
-  // Free tier: increment chat_count + source column
+  const FREE_LIMIT = 20;
   const result = await db.execute(sql.raw(`
     INSERT INTO ai_usage_daily (tenant_id, usage_date, chat_count, ${sourceCol})
     VALUES ('${tenantId}', CURRENT_DATE, 1, 1)
@@ -129,10 +136,15 @@ export async function incrementUsage(tenantId: string, source: UsageSource, isBy
     DO UPDATE SET
       chat_count = ai_usage_daily.chat_count + 1,
       ${sourceCol} = ai_usage_daily.${sourceCol} + 1
+    WHERE ai_usage_daily.chat_count < ${FREE_LIMIT}
     RETURNING chat_count
   `));
 
-  return (result.rows[0] as any)?.chat_count ?? 1;
+  if (result.rows.length === 0) {
+    return { allowed: false, newCount: FREE_LIMIT };
+  }
+
+  return { allowed: true, newCount: (result.rows[0] as any).chat_count };
 }
 
 /** Get today's usage for a tenant */

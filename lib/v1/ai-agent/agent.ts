@@ -90,6 +90,10 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
 
     // --- Confirmation resume ---
     if (pendingAction && confirmed === true) {
+      const validTools = new Set(['send_email', 'reply_to_email', 'create_event', 'search_inbox', 'search_assets', 'check_availability', 'search_calendar']);
+      if (!validTools.has(pendingAction.tool)) {
+        return { status: 'error', message: 'Invalid pending action', toolsUsed: [], emails: [], assets: [] };
+      }
       toolsUsed.push(pendingAction.tool);
       const result = await executeToolWithTimeout(pendingAction.tool, pendingAction.args, emailContext ? { threadId: emailContext.threadId } : undefined, tid);
 

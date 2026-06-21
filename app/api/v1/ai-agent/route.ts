@@ -12,13 +12,10 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const tenantId = await getTenantId();
-  if (!tenantId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-
-  // add inside each handler: 
-  const rl = await rateLimit(request, aiLimiter, tenantId); if (rl) return rl;
+  const rl = await rateLimit(request, aiLimiter, tenantId);
+  if (rl) return rl;
 
   try {
     const body = (await request.json()) as AgentRequest;
@@ -26,8 +23,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
-    // Check usage limit (skip for confirmation follow-ups — they're part of an already-counted interaction)
-    if (!body.pendingAction) {
+    // Check usage limit:
+    // - Skip for confirmations ONLY if pendingAction has a valid callId from a previous response
+    // - Always check for new messages
+    const isConfirmation = body.pendingAction && body.confirmed !== undefined;
+    if (!isConfirmation) {
       const usage = await checkAndConsumeChat(tenantId, 'agent');
       if (!usage.allowed) {
         return NextResponse.json({
