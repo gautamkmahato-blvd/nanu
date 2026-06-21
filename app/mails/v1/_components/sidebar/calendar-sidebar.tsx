@@ -84,7 +84,7 @@ export function CalendarSidebar({ collapsed }: { collapsed: boolean }) {
                     ${collapsed ? 'justify-center mx-1 py-2.5' : 'mx-2 px-3 py-[7px]'}
                     ${active
                       ? 'bg-mail-accent-soft text-mail-accent'
-                      : 'text-mail-muted hover:bg-mail-hover hover:text-mail-text'
+                      : 'text-mail-text hover:bg-mail-hover hover:text-mail-text'
                     }
                   `}
                 >

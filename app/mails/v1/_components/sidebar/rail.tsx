@@ -48,7 +48,7 @@ const RAIL_ITEMS: RailItem[] = [
     id: 'calendar',
     label: 'Calendar',
     icon: Calendar,
-    matchPrefixes: ['/mails/v1/calendar', '/mails/v1/meeting-prep', '/mails/v1/contacts', '/mails/v1/priority-contacts', '/mails/v1/bookings', '/mails/v1/booking-settings'],
+    matchPrefixes: ['/mails/v1/calendar', '/mails/v1/meeting-prep', '/mails/v1/contacts', '/mails/v1/priority-contacts', '/mails/v1/bookings',],
   },
   // {
   //   id: 'contacts',
@@ -60,7 +60,7 @@ const RAIL_ITEMS: RailItem[] = [
     id: 'settings',
     label: 'Settings',
     icon: Settings,
-    matchPrefixes: ['/mails/v1/settings'],
+    matchPrefixes: ['/mails/v1/profile', '/mails/v1/booking-settings', '/mails/v1/ai-settings'],
   },
   
 ];
@@ -113,7 +113,7 @@ export function Rail({ activeModule, onModuleChange }: RailProps) {
                 transition-all duration-150 cursor-pointer border-none
                 ${active
                   ? 'bg-mail-accent-soft text-mail-accent'
-                  : 'bg-transparent text-mail-subtle hover:text-mail-muted hover:bg-mail-hover'
+                  : 'bg-transparent text-mail-text hover:text-mail-muted hover:bg-mail-hover'
                 }
               `}
             >

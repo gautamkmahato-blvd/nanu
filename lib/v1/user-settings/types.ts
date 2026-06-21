@@ -29,7 +29,7 @@ export type UsageLimits = {
 export type UsageSource = 'agent' | 'search' | 'assistant';
 
 // Free tier limits
-export const FREE_CHAT_LIMIT = 20;
-export const FREE_SYNC_LIMIT = 20;
+export const FREE_CHAT_LIMIT = 10;
+export const FREE_SYNC_LIMIT = 5;
 export const MAX_SYNC_LIMIT = 500;
 export const BYOK_DEFAULT_SYNC_LIMIT = 100;

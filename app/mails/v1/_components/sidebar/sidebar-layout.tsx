@@ -7,13 +7,14 @@ import { MailSidebar } from './mail-sidebar';
 import { CalendarSidebar } from './calendar-sidebar';
 import { ContactsSidebar } from './contacts-sidebar';
 import { PanelLeftClose, PanelLeft } from 'lucide-react';
+import { SettingsSidebar } from './settings-sidebar';
 
 // Default routes for each module (clicking rail icon navigates here)
 const MODULE_DEFAULTS: Record<ModuleId, string> = {
   mail: '/mails/v1/dashboard',
   calendar: '/mails/v1/calendar',
   contacts: '/mails/v1/contacts',
-  settings: '/mails/v1/dashboard',
+  settings: '/mails/v1/profile',
 };
 
 // Module labels shown at top of the sidebar panel
@@ -71,11 +72,12 @@ export function SidebarLayout() {
           {activeModule === 'mail' && <MailSidebar collapsed={collapsed} />}
           {activeModule === 'calendar' && <CalendarSidebar collapsed={collapsed} />}
           {/* {activeModule === 'contacts' && <ContactsSidebar collapsed={collapsed} />} */}
-          {activeModule === 'settings' && (
+          {/* {activeModule === 'settings' && (
             <div className={`text-[12px] text-mail-subtle ${collapsed ? 'text-center' : 'px-4'}`}>
               {!collapsed && 'Coming soon'}
             </div>
-          )}
+          )} */}
+          {activeModule === 'settings' && <SettingsSidebar collapsed={collapsed} />}
         </div>
       </div>
     </div>

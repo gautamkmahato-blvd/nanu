@@ -48,7 +48,6 @@ const SECTIONS: NavSection[] = [
       { href: '/mails/v1/categories', label: 'Categories', icon: Tags },
       { href: '/mails/v1/tasks-deadlines', label: 'Tasks', icon: CheckSquare },
       { href: '/mails/v1/assets', label: 'Assets', icon: Paperclip },
-      { href: '/mails/v1/ai-settings', label: 'AI Settings', icon: Zap },
     ],
   },
 ];
@@ -105,7 +104,7 @@ export function MailSidebar({ collapsed }: { collapsed: boolean }) {
                     ${collapsed ? 'justify-center mx-1 py-2.5' : 'mx-2 px-3 py-[7px]'}
                     ${active
                       ? 'bg-mail-accent-soft text-mail-accent'
-                      : 'text-mail-muted hover:bg-mail-hover hover:text-mail-text'
+                      : 'text-mail-text hover:bg-mail-hover hover:text-mail-text'
                     }
                   `}
                 >
