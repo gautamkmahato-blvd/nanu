@@ -5,7 +5,7 @@
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { PrepSearchResult, searchRelevantEmails } from './prep-search';
 
 const MODEL = 'inception/mercury-2';
@@ -168,7 +168,7 @@ async function generatePreps(events: EventInput[], tenantId: string): Promise<Pr
   // LLM synthesis (parallel)
   await Promise.all(enriched.map(async (event) => {
     if (event.attendeePrep.length === 0) return;
-    try { event.aiPrep = await generateAiPrep(event); }
+    try { event.aiPrep = await generateAiPrep(event, tenantId); }
     catch (err) { console.warn(`[prep] AI failed for ${event.id}:`, err instanceof Error ? err.message : err); }
   }));
 
@@ -179,7 +179,7 @@ async function generatePreps(events: EventInput[], tenantId: string): Promise<Pr
 // LLM: generate AI prep brief
 // ---------------------------------------------------------------------------
 
-async function generateAiPrep(event: { summary: string; startTime: string; endTime: string; description: string | null; attendeePrep: AttendeeContext[] }): Promise<AiPrep> {
+async function generateAiPrep(event: { summary: string; startTime: string; endTime: string; description: string | null; attendeePrep: AttendeeContext[] }, tenantId: string): Promise<AiPrep> {
   const blocks = event.attendeePrep.map((a) => {
     const name = a.name ?? a.email.split('@')[0];
     const has = a.emailsReceived > 0 || a.emailsSent > 0;
@@ -219,12 +219,13 @@ Generate a JSON object with exactly these fields:
   "suggestedApproach": "1 sentence on how to approach this meeting based on sentiment and context",
   "riskFlags": ["Any concerns. Empty array if none."]
 }
-
+ 
 CRITICAL: Use the RELEVANT EMAIL content for specific points. If an email says "Q2 revenue dropped 12%", reference that specifically. Do NOT write generic talking points like "discuss Q2 performance".
 
 Respond with ONLY the JSON object. No markdown fences, no extra text before or after.`;
 
-  const response = await openRouterClient.chat.completions.create({
+  const client = await getClientForTenant(tenantId);
+  const response = await client.chat.completions.create({
     model: MODEL, temperature: 0.3, max_tokens: 800,
     messages: [{ role: 'user', content: prompt }],
   });

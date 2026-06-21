@@ -6,11 +6,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listConversations, createConversation, generateTitle } from '@/lib/v1/ai-chat/conversations';
 import { getTenantId } from '@/lib/auth/session';
 
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
+
 export async function GET(req: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+const rl = await rateLimit(req, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const { searchParams } = new URL(req.url);

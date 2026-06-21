@@ -1,18 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { getThreadMessages } from '@/lib/v1/queries/thread';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ threadId: string }> },
 ) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(_request, apiLimiter, tenantId); if (rl) return rl;
 
   const { threadId } = await params;
 

@@ -62,6 +62,7 @@ const RAIL_ITEMS: RailItem[] = [
     icon: Settings,
     matchPrefixes: ['/mails/v1/settings'],
   },
+  
 ];
 
 // ---------------------------------------------------------------------------

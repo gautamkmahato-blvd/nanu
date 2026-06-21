@@ -125,9 +125,9 @@ function buildUserContent(emailData: PendingEmail): string {
 
 class LlmApiError extends Error {}
 
-async function getLLMResponse(emailData: PendingEmail): Promise<string> {
+async function getLLMResponse(emailData: PendingEmail, tenantId: string): Promise<string> {
   const userContent = buildUserContent(emailData);
-  const response = await openRouterAnalysis(userContent);
+  const response = await openRouterAnalysis(userContent, tenantId);
 
   if (!response?.status) {
     throw new LlmApiError(response?.message?.slice(0, 200) ?? 'LLM call failed');
@@ -142,7 +142,7 @@ async function getLLMResponse(emailData: PendingEmail): Promise<string> {
 
 async function processOne(emailData: PendingEmail, tenantId: string): Promise<'analyzed' | 'failed'> {
   try {
-    const rawText = await getLLMResponse(emailData);
+    const rawText = await getLLMResponse(emailData, tenantId);
 
     let cleaned: Record<string, unknown> | null = null;
     try {

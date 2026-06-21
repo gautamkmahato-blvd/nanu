@@ -5,8 +5,10 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { getTenantId } from '@/lib/auth/session';
+import { aiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 const MODEL = 'inception/mercury-2';
 
@@ -15,6 +17,10 @@ export async function POST(request: Request) {
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+  // add inside each handler: 
+  const rl = await rateLimit(request, aiLimiter, tenantId); if (rl) return rl;
 
   try {
     const { emailId } = await request.json();
@@ -55,7 +61,8 @@ export async function POST(request: Request) {
       `Urgency: ${ai.urgency_score ?? 'N/A'}/100`,
     ].join('\n');
 
-    const response = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
       model: MODEL,
       temperature: 0.3,
       max_tokens: 400,

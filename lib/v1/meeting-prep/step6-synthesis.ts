@@ -10,12 +10,12 @@ import { buildSynthesisPrompt } from './prompts';
 // Main
 // ---------------------------------------------------------------------------
 
-export async function synthesize(bundles: MeetingEmailBundles[]): Promise<StepResult<PrepResult[]>> {
+export async function synthesize(bundles: MeetingEmailBundles[], tenantId: string): Promise<StepResult<PrepResult[]>> {
   try {
     const results: PrepResult[] = [];
 
     for (const bundle of bundles) {
-      const result = await synthesizeMeeting(bundle);
+      const result = await synthesizeMeeting(bundle, tenantId);
       results.push(result);
     }
 
@@ -29,7 +29,7 @@ export async function synthesize(bundles: MeetingEmailBundles[]): Promise<StepRe
 // Sub-step 6a: Synthesize prep for a single meeting
 // ---------------------------------------------------------------------------
 
-async function synthesizeMeeting(bundle: MeetingEmailBundles): Promise<PrepResult> {
+async function synthesizeMeeting(bundle: MeetingEmailBundles, tenantId: string): Promise<PrepResult> {
   const meeting = bundle.meeting;
 
   if (bundle.totalRetrieved === 0) {
@@ -49,7 +49,7 @@ async function synthesizeMeeting(bundle: MeetingEmailBundles): Promise<PrepResul
     queriesSection
   );
 
-  const llmResult = await callLLM(prompt, 3000);
+  const llmResult = await callLLM(prompt, 3000, tenantId);
 
   if (!llmResult.ok) {
     console.warn(`[Step 6a] LLM synthesis failed: ${llmResult.error}`);
@@ -244,4 +244,4 @@ function formatMeetingTime(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
   return `${s.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} ${s.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })} – ${e.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-}
+} 

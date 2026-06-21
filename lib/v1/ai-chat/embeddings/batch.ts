@@ -22,13 +22,13 @@ type UnembeddedEmail = {
   ai_analysis: Record<string, unknown> | null;
 };
 
-function tenantClause(tenantId?: string) {
+function tenantClause(tenantId: string) {
   return tenantId ? sql`AND tenant_id = ${tenantId}` : sql``;
 }
 
 let running = false;
 
-export async function embedPendingEmails(tenantId?: string): Promise<EmbedStats> {
+export async function embedPendingEmails(tenantId: string): Promise<EmbedStats> {
   const stats: EmbedStats = { embedded: 0, failed: 0, remaining: 0 };
 
   if (running) {
@@ -59,7 +59,7 @@ export async function embedPendingEmails(tenantId?: string): Promise<EmbedStats>
 
       // Generate embeddings in one API call
       try {
-        const vectors = await generateEmbeddingsBatch(texts);
+        const vectors = await generateEmbeddingsBatch(texts, tenantId);
 
         // Save each embedding
         for (let i = 0; i < emails.length; i++) {
@@ -101,7 +101,7 @@ export async function embedPendingEmails(tenantId?: string): Promise<EmbedStats>
   }
 }
 
-async function countPending(tenantId?: string): Promise<number> {
+async function countPending(tenantId: string): Promise<number> {
   const tClause = tenantClause(tenantId);
 
   const result = await db.execute(sql`

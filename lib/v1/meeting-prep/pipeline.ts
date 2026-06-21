@@ -101,7 +101,7 @@ export async function runMeetingPrepPipeline(hours: number = 24, tenantId = 'def
   // ── Step 3: Generate queries ──
   console.log('[Pipeline] Step 3: Generating search queries...');
   const meetingsToProcess = needsRefresh.map((c) => c.meeting);
-  const queriesResult = await generateQueries(meetingsToProcess);
+  const queriesResult = await generateQueries(meetingsToProcess, tenantId);
 
   if (!queriesResult.ok) {
     for (const m of meetingsToProcess) {
@@ -168,7 +168,7 @@ export async function runMeetingPrepPipeline(hours: number = 24, tenantId = 'def
 
   // ── Step 6: Synthesis ──
   console.log('[Pipeline] Step 6: Running AI synthesis...');
-  const synthesisResult = await synthesize(dedupeResult.data);
+  const synthesisResult = await synthesize(dedupeResult.data, tenantId);
 
   if (!synthesisResult.ok) {
     for (const m of meetingsToProcess) {

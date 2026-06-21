@@ -2,7 +2,7 @@
 // LLM Call 1: Analyze the user's natural language query.
 // Outputs structured filters + search terms + embedding text.
 
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { QUERY_ANALYSIS_PROMPT } from './prompts';
 import type { QueryAnalysis } from '../types';
 import { extractJsonFromLLM } from '@/lib/utils';
@@ -13,12 +13,13 @@ const MODEL = 'anthropic/claude-haiku-4.5';
 const DEFAULT_ANALYSIS: QueryAnalysis = {
   filters: [],
   search_terms: '',
-  embedding_text: '',
+  embedding_text: '', 
   intent: 'general',
 };
 
 export async function analyzeQuery(
   userMessage: string,
+  tenantId: string,
   conversationHistory?: { role: string; content: string }[],
 ): Promise<QueryAnalysis> {  try {
   const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
@@ -38,7 +39,8 @@ export async function analyzeQuery(
   
   messages.push({ role: 'user', content: userMessage });
   
-  const response = await openRouterClient.chat.completions.create({
+  const client = await getClientForTenant(tenantId);
+  const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0,
     max_tokens: 500,

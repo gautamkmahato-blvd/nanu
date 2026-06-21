@@ -4,7 +4,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runMeetingPrepPipeline } from '@/lib/v1/meeting-prep/pipeline';
-import { getSession } from '@/lib/auth/session';
+import { getSession, getTenantId } from '@/lib/auth/session';
+import { aiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,6 +15,14 @@ export async function GET(req: NextRequest) {
     if (!session?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tenantId = await getTenantId();
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+
+    // add inside each handler: 
+    const rl = await rateLimit(req, aiLimiter, tenantId); if (rl) return rl;
 
     // ── Params ──
     const { searchParams } = new URL(req.url);

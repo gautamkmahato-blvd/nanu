@@ -25,7 +25,8 @@ import {
   getCsrfFromRequest,
   verifyCsrfToken,
 } from '@/lib/auth/session';
-
+import { authLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit, getClientIp } from '@/lib/utils/rate-limit/check';
 export const dynamic = 'force-dynamic';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,9 @@ export async function GET(request: Request) {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const errorParam = url.searchParams.get('error');
+
+
+const rl = await rateLimit(request, authLimiter, getClientIp(request)); if (rl) return rl;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
   const loginUrl = `${baseUrl}/login`;

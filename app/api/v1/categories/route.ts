@@ -3,21 +3,25 @@
 // POST: Create a new category
 // FIXED: tenant_id filtering on all queries
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 const ALLOWED_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6',
   '#6366f1', '#8b5cf6', '#a78bfa', '#ec4899', '#06b6d4', '#6b7280',
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const result = await db.execute(sql`

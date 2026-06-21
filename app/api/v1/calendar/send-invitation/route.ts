@@ -8,12 +8,17 @@ import { getOwnEmail } from '@/lib/v1/get-own-email';
 import { generateMeetingInviteHtml } from '@/lib/v1/calendar/meeting-template';
 import { generateIcs } from '@/lib/v1/calendar/ics-generator';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 export async function POST(request: Request) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const body = await request.json();

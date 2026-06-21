@@ -25,7 +25,7 @@ export type ChatResponse = {
 export type ChatQueryOptions = {
   skipAnswer?: boolean;
   conversationHistory?: { role: string; content: string }[];
-  tenantId?: string;
+  tenantId: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ export async function handleChatQuery(
 
   // Step 1: Analyze the query (with conversation context if available)
   const analyzeStart = Date.now();
-  const analysis = await analyzeQuery(userMessage, options?.conversationHistory);
+  const analysis = await analyzeQuery(userMessage, tenantId, options?.conversationHistory);
   console.log(`[ai-chat:${requestId}] [1/4] analyze: ${Date.now() - analyzeStart}ms | intent=${analysis.intent} | filters=${analysis.filters.length} | terms="${analysis.search_terms.slice(0, 40)}"`);
 
   // Short-circuit for general intent
@@ -104,7 +104,7 @@ export async function handleChatQuery(
       };
     }
     const answerStart = Date.now();
-    const answer = await generateAnswer(userMessage, [], analysis);
+    const answer = await generateAnswer(userMessage, [], analysis, tenantId);
     console.log(`[ai-chat:${requestId}] [skip] general intent | answer: ${Date.now() - answerStart}ms | total: ${Date.now() - startTime}ms`);
     return {
       answer,
@@ -157,7 +157,7 @@ export async function handleChatQuery(
   }
 
   const answerStart = Date.now();
-  const answer = await generateAnswer(userMessage, merged, analysis);
+  const answer = await generateAnswer(userMessage, merged, analysis, tenantId);
   console.log(`[ai-chat:${requestId}] [4/4] answer: ${Date.now() - answerStart}ms | length=${answer.length} chars`);
 
   const totalMs = Date.now() - startTime;

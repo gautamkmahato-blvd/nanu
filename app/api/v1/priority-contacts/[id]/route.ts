@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteContact } from '@/lib/v1/priority-contacts/db';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -12,6 +14,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(req, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const { id } = await params;

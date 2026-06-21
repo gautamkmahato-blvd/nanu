@@ -4,6 +4,8 @@
 import { NextResponse } from 'next/server';
 import { executeEmailAction, type ActionType } from '@/lib/v1/email-actions/actions';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 const VALID_ACTIONS: ActionType[] = ['mark_done', 'unmark_done', 'mark_important', 'unmark_important'];
 
@@ -15,6 +17,9 @@ export async function PATCH(
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   const { emailId } = await params;
 

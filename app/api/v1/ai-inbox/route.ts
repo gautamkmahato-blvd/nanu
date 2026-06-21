@@ -13,7 +13,8 @@ import { getAIInboxThreads, type AIInboxThread, type TimePeriod } from '@/lib/v1
 import { derivePriority, type AttentionType, type PriorityLevel } from '@/lib/v1/priority';
 import { deriveAttentionLabels } from '@/lib/v1/dashboard/attention-labels';
 import { getTenantId } from '@/lib/auth/session';
-
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -155,6 +156,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
+
   const { searchParams } = new URL(request.url);
   const limit = Math.min(Number(searchParams.get('limit')) || 50, 200);
   const offset = Number(searchParams.get('offset')) || 0;
@@ -175,17 +179,17 @@ export async function GET(request: Request) {
       needs_attention: 0, in_progress: 0, waiting: 0,
       everything_else: 0, snoozed: 0, done: 0,
     };
-    
+
     const byAttention: Record<AttentionType, number> = {
       risk: 0, opportunity: 0, deadline: 0,
       action_required: 0, follow_up: 0, information: 0,
     };
-    
+
     for (const t of threads) {
       for (const label of t.attentionLabels) byAttention[label]++;
       byGroup[t.statusGroup]++;
     }
-    
+
     const counts = {
       total: threads.length,
       urgent: threads.filter((t) => t.priority.level === 'urgent').length,

@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { getEmailById, getThreadEmails } from '@/lib/v1/queries/ai-email-detail';
 import { extractEmailIntelligence } from '@/lib/v1/ai-email-details';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';  
 
 export async function GET(
   _request: Request,
@@ -13,6 +15,9 @@ export async function GET(
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(_request, apiLimiter, tenantId); if (rl) return rl;
 
   const { emailId } = await params;
 

@@ -18,7 +18,7 @@ export async function semanticSearch(
   if (!queryText.trim()) return [];
 
   // Embed the query
-  const queryVector = await generateEmbedding(queryText);
+  const queryVector = await generateEmbedding(queryText, tenantId);
   const vectorStr = `[${queryVector.join(',')}]`;
 
   // Find closest emails

@@ -6,6 +6,8 @@ import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 export async function DELETE(
   _request: Request,
@@ -15,6 +17,8 @@ export async function DELETE(
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+const rl = await rateLimit(_request, apiLimiter, tenantId); if (rl) return rl;
 
   const { categoryId } = await params;
 

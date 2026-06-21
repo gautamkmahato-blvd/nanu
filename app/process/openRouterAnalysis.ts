@@ -1,5 +1,5 @@
 import type OpenAI from 'openai';
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { EMAIL_ANALYSIS_SYSTEM_PROMPT } from '@/lib/v1/ai/prompts/analysis-prompt';
 import { EMAIL_CLASSIFICATION_TAXONOMY } from '@/lib/v1/ai/prompts/classification-prompt';
 
@@ -14,6 +14,7 @@ const MODEL = 'qwen/qwen3.6-flash';
 
 export default async function openRouterAnalysis(
   input: string,
+  tenantId: string,
 ): Promise<{ status: boolean; result?: string; message: string }> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) {
@@ -44,7 +45,8 @@ export default async function openRouterAnalysis(
 
   try {
 
-    const apiResponse = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const apiResponse = await client.chat.completions.create({
       model: MODEL,
       stream: false,
       messages: [

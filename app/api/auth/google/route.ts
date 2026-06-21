@@ -10,10 +10,11 @@
 // The tenantId is derived from the user's Google `sub` in the callback,
 // so the same Google account always maps to the same tenant.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { buildCsrfCookie } from '@/lib/auth/session';
-
+import { authLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit, getClientIp } from '@/lib/utils/rate-limit/check';
 export const dynamic = 'force-dynamic';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -26,7 +27,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/calendar',
 ].join(' ');
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
     return NextResponse.json(
@@ -34,6 +35,9 @@ export async function GET() {
       { status: 500 },
     );
   }
+
+
+const rl = await rateLimit(request, authLimiter, getClientIp(request)); if (rl) return rl;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
   const redirectUri = `${baseUrl}/api/auth/google/callback`;

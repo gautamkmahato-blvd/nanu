@@ -6,19 +6,23 @@
 // All three handlers now filter/write tenant_id directly on the junction table,
 // in addition to the existing JOIN-based enforcement on categories + emails.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 export async function GET(
-  _request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ categoryId: string }> },
 ) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+const rl = await rateLimit(_request, apiLimiter, tenantId); if (rl) return rl;
   const { categoryId } = await params;
 
   try {

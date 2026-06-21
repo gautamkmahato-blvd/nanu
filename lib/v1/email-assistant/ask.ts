@@ -4,7 +4,7 @@
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { extractJsonFromLLM } from '@/lib/utils';
 import { handleChatQuery } from '@/lib/v1/ai-chat';
 import { EMAIL_ASSISTANT_PROMPT, buildEmailContext } from './prompts';
@@ -53,6 +53,7 @@ async function routeQuestion(
   email: EmailContext,
   userMessage: string,
   history: ChatHistoryMessage[],
+  tenantId: string,
 ): Promise<RouteResult> {
   const emailContext = buildEmailContext(email);
 
@@ -72,7 +73,8 @@ async function routeQuestion(
   messages.push({ role: 'user', content: userMessage });
 
   try {
-    const response = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
       model: MODEL,
       temperature: 0,
       max_tokens: 2000,
@@ -144,7 +146,7 @@ export async function askAboutEmail(
   }
 
   // Route the question
-  const route = await routeQuestion(email, userMessage.trim(), history);
+  const route = await routeQuestion(email, userMessage.trim(), history, tenantId);
 
   // Handle direct and off_topic — no search needed
   if (route.type === 'direct' || route.type === 'off_topic') {

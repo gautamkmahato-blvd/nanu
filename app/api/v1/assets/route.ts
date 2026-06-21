@@ -9,7 +9,8 @@ import { getTenantId } from '@/lib/auth/session';
 import { getAssets, getAssetFilterOptions } from '@/lib/v1/assets/queries';
 import { backfillAssets } from '@/lib/v1/assets/extract';
 import type { AssetType, MimeCategory, AssetFilters } from '@/lib/v1/assets/types';
-
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 // ---------------------------------------------------------------------------
 // Validation helpers
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ export async function GET(req: NextRequest) {
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(req, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const { searchParams } = new URL(req.url);

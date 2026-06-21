@@ -15,6 +15,8 @@ import {
   CheckSquare,
   PenSquare,
   Paperclip,
+  Zap,
+  Clock,
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: React.ElementType; badge?: string };
@@ -35,6 +37,7 @@ const SECTIONS: NavSection[] = [
       { href: '/mails/v1/inbox', label: 'Inbox', icon: Inbox },
       { href: '/mails/v1/important', label: 'Important', icon: Star },
       { href: '/mails/v1/sent', label: 'Sent', icon: Send },
+      { href: '/mails/v1/scheduled', label: 'Scheduled', icon: Clock },
       { href: '/mails/v1/trash', label: 'Trash', icon: Trash2 },
     ],
   },
@@ -45,6 +48,7 @@ const SECTIONS: NavSection[] = [
       { href: '/mails/v1/categories', label: 'Categories', icon: Tags },
       { href: '/mails/v1/tasks-deadlines', label: 'Tasks', icon: CheckSquare },
       { href: '/mails/v1/assets', label: 'Assets', icon: Paperclip },
+      { href: '/mails/v1/ai-settings', label: 'AI Settings', icon: Zap },
     ],
   },
 ];

@@ -14,13 +14,15 @@ import {
   Loader2, Mail, Star, Reply, ReplyAll, Forward, MoreVertical,
   Trash2, CheckCircle2, ChevronDown, ChevronRight, CalendarPlus,
   MessageSquare, Sparkles, Archive, Flag, X,
+  Clock,
 } from 'lucide-react';
+import ScheduleReplyPanel from './_components/ScheduleReplyPanel';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const AVATAR_COLORS = ['#e57373','#f06292','#ba68c8','#9575cd','#7986cb','#64b5f6','#4fc3f7','#4dd0e1','#4db6ac','#81c784','#aed581','#dce775','#ffd54f','#ffb74d','#ff8a65','#a1887f'];
+const AVATAR_COLORS = ['#e57373', '#f06292', '#ba68c8', '#9575cd', '#7986cb', '#64b5f6', '#4fc3f7', '#4dd0e1', '#4db6ac', '#81c784', '#aed581', '#dce775', '#ffd54f', '#ffb74d', '#ff8a65', '#a1887f'];
 function getAvatarColor(name: string): string { let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]; }
 function initials(n: string | null, e: string): string { const s = n || e; const p = s.trim().split(/\s+/); return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : s.slice(0, 2).toUpperCase(); }
 function displayName(n: string | null, e: string): string { return n || (e.indexOf('@') > 0 ? e.slice(0, e.indexOf('@')) : e); }
@@ -54,7 +56,7 @@ function InboxInner() {
   const [syncDone, setSyncDone] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [error, setError] = useState('');
-  const [rightPanel, setRightPanel] = useState<'none' | 'schedule' | 'chat'>('none');
+  const [rightPanel, setRightPanel] = useState<'none' | 'schedule' | 'chat' | 'schedule_reply'>('none');
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [draftReply, setDraftReply] = useState<string | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -207,7 +209,7 @@ function InboxInner() {
     const ids = messages.map((m) => m.id);
     let success = 0;
     for (const id of ids) {
-      try { const res = await fetch(`/api/v1/emails/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); if (res.ok) { success++; setStatusMap((prev) => ({ ...prev, [id]: status })); } } catch {}
+      try { const res = await fetch(`/api/v1/emails/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); if (res.ok) { success++; setStatusMap((prev) => ({ ...prev, [id]: status })); } } catch { }
     }
     setThreadStatus(status);
     showToast(`${success} email${success > 1 ? 's' : ''} → ${STATUS_CONFIG[status]?.label ?? status}`, 'success');
@@ -216,7 +218,7 @@ function InboxInner() {
   const markThreadDone = async () => {
     const ids = messages.map((m) => m.id);
     for (const id of ids) {
-      try { await fetch(`/api/v1/emails/${id}/actions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_done' }) }); } catch {}
+      try { await fetch(`/api/v1/emails/${id}/actions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_done' }) }); } catch { }
       setStatusMap((prev) => ({ ...prev, [id]: 'done' }));
     }
     setThreadStatus('done');
@@ -230,12 +232,14 @@ function InboxInner() {
     try {
       const cacheRes = await fetch(`/api/v1/emails/${firstEmail.id}/drafts`);
       if (cacheRes.ok) { const cached = await cacheRes.json(); if (cached.draft) { setDraftReply(cached.draft); return; } }
-      const res = await fetch('/api/v1/ai-agent', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'Draft 3 reply options with different tones: 1) Professional and detailed 2) Short and direct 3) Friendly and warm.', emailContext: { emailId: firstEmail.id, threadId: selectedThread.threadId, subject: selectedThread.subject ?? '', fromEmail: firstEmail.fromEmail, fromName: firstEmail.fromName, toEmails: (firstEmail as any).toEmails ?? [], bodySnippet: (firstEmail.bodyText ?? '').slice(0, 500) } }) });
+      const res = await fetch('/api/v1/ai-agent', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Draft 3 reply options with different tones: 1) Professional and detailed 2) Short and direct 3) Friendly and warm.', emailContext: { emailId: firstEmail.id, threadId: selectedThread.threadId, subject: selectedThread.subject ?? '', fromEmail: firstEmail.fromEmail, fromName: firstEmail.fromName, toEmails: (firstEmail as any).toEmails ?? [], bodySnippet: (firstEmail.bodyText ?? '').slice(0, 500) } })
+      });
       const result = await res.json();
       const draft = result.message ?? 'Could not generate.';
       setDraftReply(draft);
-      await fetch(`/api/v1/emails/${firstEmail.id}/drafts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft }) }).catch(() => {});
+      await fetch(`/api/v1/emails/${firstEmail.id}/drafts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft }) }).catch(() => { });
     } catch { setDraftReply('Failed to generate.'); }
     finally { setDraftLoading(false); }
   };
@@ -303,6 +307,7 @@ function InboxInner() {
                 <h2 className="text-lg font-semibold m-0 text-mail-text mb-2">{selectedThread.subject || '(No subject)'}</h2>
                 <div className="flex items-center gap-1">
                   <TopBtn icon={CalendarPlus} label="Schedule" onClick={() => setRightPanel(rightPanel === 'schedule' ? 'none' : 'schedule')} />
+                  <TopBtn icon={Clock} label="Schedule Reply" onClick={() => setRightPanel(rightPanel === 'schedule_reply' ? 'none' : 'schedule_reply')} />
                   {firstEmail && <SaveToCategory emailId={firstEmail.id} />}
                   <TopBtn icon={CheckCircle2} label="Done" onClick={markThreadDone} />
 
@@ -398,8 +403,16 @@ function InboxInner() {
               <EmailAssistantChat emailContext={emailContext} onClose={() => setRightPanel('none')} />
             ) : rightPanel === 'schedule' && firstEmail && selectedThread ? (
               <div className="p-4">
-                <ScheduleMeetingPanel emailId={firstEmail.id} senderEmail={firstEmail.fromEmail} senderName={firstEmail.fromName} subject={selectedThread.subject} onClose={() => setRightPanel('none')} onScheduled={() => {}} />
+                <ScheduleMeetingPanel emailId={firstEmail.id} senderEmail={firstEmail.fromEmail} senderName={firstEmail.fromName} subject={selectedThread.subject} onClose={() => setRightPanel('none')} onScheduled={() => { }} />
               </div>
+            ) : rightPanel === 'schedule_reply' && selectedThread ? (
+              <ScheduleReplyPanel
+                threadId={selectedThread.threadId}
+                subject={selectedThread.subject}
+                messages={messages.map((m) => ({ fromEmail: m.fromEmail, fromName: m.fromName, toEmails: (m as any).toEmails ?? [] }))}
+                onClose={() => setRightPanel('none')}
+                onScheduled={() => { }}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-mail-subtle text-[13px]">No panel</div>
             )}
@@ -615,7 +628,7 @@ function MessageCard({ msg, isExpanded, isLast, onToggle, emailStatus, onStatusC
             <iframe sandbox="allow-same-origin"
               srcDoc={`<!doctype html><html><head><style>body{margin:0;padding:0;font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.7;color:var(--mail-text,#d4d4d8);background:transparent;}a{color:var(--mail-accent,#f59e0b);}img{max-width:100%;height:auto;}blockquote{border-left:2px solid var(--mail-border,#3f3f46);margin-left:0;padding-left:12px;color:var(--mail-muted,#a1a1aa);}</style></head><body>${msg.bodyHtml}</body></html>`}
               className="w-full border-0 bg-transparent" style={{ minHeight: 60 }} title="Email"
-              onLoad={(e) => { try { const h = e.currentTarget.contentDocument?.body?.scrollHeight; if (h) e.currentTarget.style.height = h + 16 + 'px'; } catch {} }} />
+              onLoad={(e) => { try { const h = e.currentTarget.contentDocument?.body?.scrollHeight; if (h) e.currentTarget.style.height = h + 16 + 'px'; } catch { } }} />
           ) : (
             <pre className="text-[14px] text-mail-muted whitespace-pre-wrap break-words m-0 leading-relaxed font-[inherit]">{msg.bodyText || msg.snippet || '(No content)'}</pre>
           )}

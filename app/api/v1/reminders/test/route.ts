@@ -6,9 +6,14 @@ import { NextResponse } from 'next/server';
 import { getTenantId, getSession } from '@/lib/auth/session';
 import { countRecentCalls, getReminderSettings, triggerReminderCall } from '@/lib/v1/vapi';
 
-export async function POST() {
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
+
+export async function POST(request: Request) {
   const tenantId = await getTenantId();
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   const settings = await getReminderSettings(tenantId);
   if (!settings?.phoneNumber) {

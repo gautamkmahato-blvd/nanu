@@ -10,12 +10,12 @@ import { buildQueryGenerationPrompt } from './prompts';
 // Main
 // ---------------------------------------------------------------------------
 
-export async function generateQueries(meetings: Meeting[]): Promise<StepResult<MeetingQueries[]>> {
+export async function generateQueries(meetings: Meeting[], tenantId: string): Promise<StepResult<MeetingQueries[]>> {
   try {
     const results: MeetingQueries[] = [];
 
     for (const meeting of meetings) {
-      const attendeeQueries = await generateQueriesForMeeting(meeting);
+      const attendeeQueries = await generateQueriesForMeeting(meeting, tenantId);
       results.push({ meeting, attendeeQueries });
     }
 
@@ -29,7 +29,7 @@ export async function generateQueries(meetings: Meeting[]): Promise<StepResult<M
 // Sub-step 3a: Generate queries for all attendees of a single meeting
 // ---------------------------------------------------------------------------
 
-async function generateQueriesForMeeting(meeting: Meeting): Promise<AttendeeQueries[]> {
+async function generateQueriesForMeeting(meeting: Meeting, tenantId: string): Promise<AttendeeQueries[]> {
   const externalAttendees = meeting.attendees.filter((a) => !a.self);
   const results: AttendeeQueries[] = [];
 
@@ -38,7 +38,7 @@ async function generateQueriesForMeeting(meeting: Meeting): Promise<AttendeeQuer
   for (let i = 0; i < externalAttendees.length; i += batchSize) {
     const batch = externalAttendees.slice(i, i + batchSize);
     const batchResults = await Promise.all(
-      batch.map((attendee) => generateQueriesForAttendee(meeting, attendee.email, attendee.name, attendee.relationshipType))
+      batch.map((attendee) => generateQueriesForAttendee(meeting, attendee.email, attendee.name, attendee.relationshipType, tenantId))
     );
     results.push(...batchResults);
   }
@@ -54,7 +54,8 @@ async function generateQueriesForAttendee(
   meeting: Meeting,
   attendeeEmail: string,
   attendeeName: string | null,
-  relationshipType: string | null
+  relationshipType: string | null,
+  tenantId: string
 ): Promise<AttendeeQueries> {
   const prompt = buildQueryGenerationPrompt(
     meeting.summary,
@@ -63,8 +64,8 @@ async function generateQueriesForAttendee(
     attendeeEmail,
     relationshipType
   );
-
-  const llmResult = await callLLM(prompt, 500);
+ 
+  const llmResult = await callLLM(prompt, 500, tenantId);
 
   // If LLM fails, create fallback queries from meeting title + attendee name
   if (!llmResult.ok) {

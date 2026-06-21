@@ -8,6 +8,8 @@ import { getTenantId } from '@/lib/auth/session';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { corsair } from '@/corsair';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 type Params = { params: Promise<{ assetId: string }> };
 
@@ -16,6 +18,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(req, apiLimiter, tenantId); if (rl) return rl;
 
   const { assetId } = await params;
 

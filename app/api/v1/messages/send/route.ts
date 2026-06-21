@@ -1,18 +1,22 @@
 // app/api/v1/messages/send/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { SendEmailError, sendEmail } from '@/app/service/v1/sendEmail';
 import { sendEmailSchema } from '@/lib/schemas/v1/send-email';
 import { getTenantId } from '@/lib/auth/session';
 
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   let body: unknown;
   try {

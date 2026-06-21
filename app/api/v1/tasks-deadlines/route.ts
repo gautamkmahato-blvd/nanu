@@ -1,15 +1,20 @@
 // app/api/v1/tasks-deadlines/route.ts
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getTaskEmails } from '@/lib/v1/queries/tasks-deadlines';
 import { getTasksAndDeadlines } from '@/lib/v1/tasks-deadlines';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(req, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const emails = await getTaskEmails(tenantId);

@@ -7,12 +7,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNotificationSettings, updateNotificationSettings } from '@/lib/v1/priority-contacts/db';
 import { sendTelegramMessage } from '@/lib/v1/priority-contacts/telegram';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
-export async function GET() {
+export async function GET(request: Request) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const settings = await getNotificationSettings(tenantId);

@@ -5,7 +5,7 @@
 //   3. Output filter (strip code blocks, redact sensitive data)
 
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { initializeTools, executeToolWithTimeout, generatePreview, DESTRUCTIVE_TOOLS } from './tools';
 import type { AgentRequest, AgentResponse, EmailContext, SearchResultEmail, AssetResult } from './types';
 import { sanitizeEmailContext, sanitizeInput } from './guardrails/sanitizer';
@@ -105,7 +105,8 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
       });
       messages.push({ role: 'tool', tool_call_id: pendingAction.callId, content: JSON.stringify(result) });
 
-      const finalRes = await openRouterClient.chat.completions.create({ model: MODEL, max_tokens: 500, messages });
+      const client = await getClientForTenant(tid);
+      const finalRes = await client.chat.completions.create({ model: MODEL, max_tokens: 500, messages });
       const rawOutput = finalRes.choices[0]?.message?.content ?? 'Action completed.';
       return { status: 'done', message: filterAgentOutput(rawOutput), toolsUsed, emails: collectedEmails, assets: collectedAssets };
     }
@@ -119,7 +120,8 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
     messages.push({ role: 'user', content: message });
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const response = await openRouterClient.chat.completions.create({ model: MODEL, max_tokens: 2000, tools, messages });
+      const client = await getClientForTenant(tid);
+      const response = await client.chat.completions.create({ model: MODEL, max_tokens: 2000, tools, messages });
 
       const choice = response.choices[0];
       if (!choice) return { status: 'error', message: 'No LLM response', toolsUsed, emails: [], assets: [] };

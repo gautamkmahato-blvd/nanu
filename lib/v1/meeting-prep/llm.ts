@@ -1,3 +1,4 @@
+import { getClientForTenant } from '@/config/openrouter/config';
 // lib/v1/meeting-prep/llm.ts
 // Shared LLM and embedding helpers.
 // Wraps OpenRouter API calls with error handling.
@@ -15,33 +16,17 @@ const EMBEDDING_DIMENSIONS = 1024;
 // LLM Chat Call
 // ---------------------------------------------------------------------------
 
-export async function callLLM(prompt: string, maxTokens: number = 2000): Promise<StepResult<string>> {
-  if (!OPENROUTER_API_KEY) {
-    return { ok: false, error: 'OPENROUTER_API_KEY not configured' };
-  }
-
+export async function callLLM(prompt: string, maxTokens: number = 2000, tenantId: string): Promise<StepResult<string>> {
   try {
-    const res = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: CHAT_MODEL,
-        max_tokens: maxTokens,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3, // low for factual accuracy
-      }),
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
+      model: CHAT_MODEL,
+      max_tokens: maxTokens,
+      temperature: 0.3, // low for factual accuracy
+      messages: [{ role: 'user', content: prompt }],
     });
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => 'Unknown error');
-      return { ok: false, error: `LLM call failed (${res.status}): ${err}` };
-    }
-
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content?.trim();
+    const content = response.choices?.[0]?.message?.content?.trim();
 
     if (!content) {
       return { ok: false, error: 'LLM returned empty response' };
@@ -77,36 +62,20 @@ export function parseLLMJson<T>(raw: string): StepResult<T> {
 // Embedding Call
 // ---------------------------------------------------------------------------
 
-export async function getEmbedding(text: string): Promise<StepResult<number[]>> {
-  if (!OPENROUTER_API_KEY) {
-    return { ok: false, error: 'OPENROUTER_API_KEY not configured' };
-  }
-
+export async function getEmbedding(text: string, tenantId: string): Promise<StepResult<number[]>> {
   if (!text.trim()) {
     return { ok: false, error: 'Empty text for embedding' };
   }
 
   try {
-    const res = await fetch('https://openrouter.ai/api/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: EMBEDDING_MODEL,
-        input: text,
-        dimensions: EMBEDDING_DIMENSIONS,
-      }),
+    const client = await getClientForTenant(tenantId);
+    const response = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: text,
+      dimensions: EMBEDDING_DIMENSIONS,
     });
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => 'Unknown');
-      return { ok: false, error: `Embedding call failed (${res.status}): ${err}` };
-    }
-
-    const data = await res.json();
-    const embedding = data.data?.[0]?.embedding;
+    const embedding = response.data?.[0]?.embedding;
 
     if (!embedding || !Array.isArray(embedding)) {
       return { ok: false, error: 'Embedding response missing vector data' };

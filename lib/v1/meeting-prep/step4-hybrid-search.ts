@@ -242,7 +242,7 @@ type RawSearchRow = {
 };
 
 async function runSemanticSearch(query: string, tenantId: string): Promise<RawSearchRow[]> {
-  const embeddingResult = await getEmbedding(query);
+  const embeddingResult = await getEmbedding(query, tenantId);
 
   if (!embeddingResult.ok) {
     console.error(`[Step 4d] Embedding failed: ${embeddingResult.error}`);

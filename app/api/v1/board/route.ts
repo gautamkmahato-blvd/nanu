@@ -1,10 +1,12 @@
 // app/api/v1/board/route.ts
 // GET: Returns emails grouped by status for the Kanban board.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 type BoardEmail = {
   id: string;
@@ -42,11 +44,14 @@ const COLUMN_LABELS: Record<string, string> = {
   archived: 'Archived',
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+
+const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const result = await db.execute(sql`

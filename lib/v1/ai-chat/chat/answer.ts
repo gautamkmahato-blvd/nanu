@@ -1,7 +1,7 @@
 // lib/v1/ai-chat/chat/answer.ts
 // LLM Call 2: Generate a natural language answer from search results.
 
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 import { ANSWER_GENERATION_PROMPT } from './prompts';
 import type { SearchResultEmail, QueryAnalysis } from '../types';
 
@@ -12,10 +12,11 @@ export async function generateAnswer(
   userMessage: string,
   results: SearchResultEmail[],
   analysis: QueryAnalysis,
+  tenantId: string,
 ): Promise<string> { 
   // General intent — no search needed
   if (analysis.intent === 'general') {
-    return generateGeneralAnswer(userMessage);
+    return generateGeneralAnswer(userMessage, tenantId);
   }
 
   // Build context from search results
@@ -29,7 +30,8 @@ export async function generateAnswer(
     : 'No matching emails found.';
 
   try {
-    const response = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
       model: MODEL,
       temperature: 0.3,
       max_tokens: 800,
@@ -54,9 +56,10 @@ export async function generateAnswer(
   }
 }
 
-async function generateGeneralAnswer(userMessage: string): Promise<string> {
+async function generateGeneralAnswer(userMessage: string, tenantId: string): Promise<string> {
   try {
-    const response = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
       model: MODEL,
       temperature: 0.5,
       max_tokens: 300,

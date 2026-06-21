@@ -1,7 +1,7 @@
 // lib/v1/ai-chat/embeddings/generate.ts
 // Generates embeddings via OpenRouter using Qwen3 embedding model.
 
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 
 const EMBEDDING_MODEL = 'qwen/qwen3-embedding-8b';
 const EMBEDDING_DIM = 1024;
@@ -12,12 +12,13 @@ export { EMBEDDING_DIM };
  * Generate embedding for a single text string.
  * Returns a float[] vector of dimension 1024.
  */
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(text: string, tenantId: string): Promise<number[]> {
   if (!text.trim()) {
     return new Array(EMBEDDING_DIM).fill(0);
   }
 
-  const response = await openRouterClient.embeddings.create({
+  const client = await getClientForTenant(tenantId);
+  const response = await client.embeddings.create({
     model: EMBEDDING_MODEL,
     input: text.slice(0, 8000), // Qwen context limit safety
     encoding_format: 'float',
@@ -36,12 +37,13 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * Generate embeddings for multiple texts in one API call.
  * Returns array of float[] vectors in same order as input.
  */
-export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+export async function generateEmbeddingsBatch(texts: string[], tenantId: string): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const cleaned = texts.map((t) => t.slice(0, 8000) || ' ');
 
-  const response = await openRouterClient.embeddings.create({
+  const client = await getClientForTenant(tenantId);
+  const response = await client.embeddings.create({
     model: EMBEDDING_MODEL,
     input: cleaned,
     encoding_format: 'float',

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { sql } from 'drizzle-orm';
 import { getTenantId } from '@/lib/auth/session';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
 // GET — return cached draft or null
 export async function GET(_req: Request, { params }: { params: Promise<{ emailId: string }> }) {
@@ -9,6 +11,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ emailId
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+const rl = await rateLimit(_req, apiLimiter, tenantId); if (rl) return rl;
+
   const { emailId } = await params;
   const result = await db.execute(sql`SELECT draft_reply FROM emails WHERE tenant_id = ${tenantId} AND id = ${emailId}`);
   const draft = (result.rows[0] as any)?.draft_reply ?? null;

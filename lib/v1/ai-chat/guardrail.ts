@@ -3,7 +3,7 @@
 // Single-turn, minimal prompt, ~100-200ms.
 // Returns 'email' or 'not_email'.
 
-import openRouterClient from '@/config/openrouter/config';
+import { getClientForTenant } from '@/config/openrouter/config';
 
 const GUARDRAIL_MODEL = 'inception/mercury-2';
 
@@ -29,9 +29,11 @@ Examples:
 
 Query: `;
 
-export async function guardrailCheck(userMessage: string): Promise<'email' | 'not_email'> {
+
+export async function guardrailCheck(userMessage: string, tenantId: string): Promise<'email' | 'not_email'> {
   try {
-    const response = await openRouterClient.chat.completions.create({
+    const client = await getClientForTenant(tenantId);
+    const response = await client.chat.completions.create({
       model: GUARDRAIL_MODEL,
       temperature: 0,
       max_tokens: 5,

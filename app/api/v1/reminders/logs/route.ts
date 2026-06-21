@@ -4,10 +4,16 @@
 import { NextResponse } from 'next/server';
 import { getTenantId } from '@/lib/auth/session';
 import { getRecentLogs } from '@/lib/v1/vapi';
+import { apiLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 
-export async function GET() {
+
+export async function GET(request: Request) {
   const tenantId = await getTenantId();
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+
+const rl = await rateLimit(request, apiLimiter, tenantId); if (rl) return rl;
 
   try {
     const logs = await getRecentLogs(tenantId, 20);

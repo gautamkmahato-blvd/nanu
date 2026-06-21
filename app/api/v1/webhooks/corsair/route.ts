@@ -10,6 +10,8 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { corsair } from '@/corsair';
 
+import { webhookLimiter } from '@/lib/utils/rate-limit';
+import { rateLimit } from '@/lib/utils/rate-limit/check';
 type WebhookBody = Record<string, unknown>;
 
 type WebhookResponse = {
@@ -112,6 +114,8 @@ export const maxDuration = 30;
 
 export async function POST(request: Request) {
   let body: WebhookBody;
+
+const rl = await rateLimit(request, webhookLimiter, 'webhook'); if (rl) return rl;
 
   try {
     const parsed = parseWebhookBody(await request.json());

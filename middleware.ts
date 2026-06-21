@@ -51,6 +51,10 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    if (pathname === '/api/v1/scheduled-emails/process') {
+      return NextResponse.next();
+    }
+
     if (!hasSession(request)) {
       return NextResponse.json(
         { error: 'Unauthorized — please sign in' },

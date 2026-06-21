@@ -86,7 +86,7 @@ async function vectorSearch(
   limit: number,
   tenantId: string,
 ): Promise<RawResult[]> {
-  const embedding = await generateEmbedding(query);
+  const embedding = await generateEmbedding(query, tenantId);
   if (!embedding || embedding.length === 0) return [];
 
   const embeddingStr = `[${embedding.join(',')}]`;
