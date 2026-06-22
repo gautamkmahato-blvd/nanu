@@ -84,7 +84,7 @@ export default function BentoGridFeaturesPage() {
 
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <span className="bg-[#00D062]/10 text-[#00D062] font-mono text-[10px] px-1.5 py-0.5 rounded font-bold border border-[#00D062]/20">01</span>
+              <span className="bg-neutral-200/10 text-neutral-200 font-mono text-[10px] px-1.5 py-0.5 rounded font-bold border border-neutral-500/10">01</span>
               <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">AI Meeting Assistant</span>
             </div>
 
@@ -105,11 +105,11 @@ export default function BentoGridFeaturesPage() {
               }}
               className="relative z-10 flex flex-col items-center gap-2 flex-1"
             >
-              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-[#00D062] shadow-md">
+              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-neutral-200 shadow-md">
                 <FileText size={15} />
               </div>
               <div className="space-y-0.5 mt-1">
-                <p className="text-[10px] font-bold text-[#00D062] tracking-wider uppercase">Before</p>
+                <p className="text-[10px] font-bold text-neutral-200 tracking-wider uppercase">Before</p>
                 <p className="text-[9px] text-neutral-500 leading-tight">I prepare<br />and brief you</p>
               </div>
             </motion.div>
@@ -122,11 +122,11 @@ export default function BentoGridFeaturesPage() {
               }}
               className="relative z-10 flex flex-col items-center gap-2 flex-1"
             >
-              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-[#00D062] shadow-md">
+              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-neutral-200 shadow-md">
                 <AudioLines size={15} />
               </div>
               <div className="space-y-0.5 mt-1">
-                <p className="text-[10px] font-bold text-[#00D062] tracking-wider uppercase">During</p>
+                <p className="text-[10px] font-bold text-neutral-200 tracking-wider uppercase">During</p>
                 <p className="text-[9px] text-neutral-500 leading-tight">I listen and<br />take notes</p>
               </div>
             </motion.div>
@@ -139,11 +139,11 @@ export default function BentoGridFeaturesPage() {
               }}
               className="relative z-10 flex flex-col items-center gap-2 flex-1"
             >
-              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-[#00D062] shadow-md">
+              <div className="w-10 h-10 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-neutral-200 shadow-md">
                 <CheckCircle2 size={14} />
               </div>
               <div className="space-y-0.5 mt-1">
-                <p className="text-[10px] font-bold text-[#00D062] tracking-wider uppercase">After</p>
+                <p className="text-[10px] font-bold text-neutral-200 tracking-wider uppercase">After</p>
                 <p className="text-[9px] text-neutral-500 leading-tight">I send recaps<br />and next steps</p>
               </div>
             </motion.div>
@@ -162,7 +162,7 @@ export default function BentoGridFeaturesPage() {
           <div className="md:col-span-6 flex flex-col justify-between py-1">
             <div>
               <div className="flex items-center gap-2 mb-6">
-                <span className="bg-[#00D062]/10 text-[#00D062] font-mono text-[10px] px-1.5 py-0.5 rounded font-bold border border-[#00D062]/20">02</span>
+                <span className="bg-neutral-200/10 text-neutral-200 font-mono text-[10px] px-1.5 py-0.5 rounded font-bold border border-neutral-200/10">02</span>
                 <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Calendar Management</span>
               </div>
               <h3 className="text-2xl font-normal tracking-tight text-white leading-snug">
@@ -177,11 +177,11 @@ export default function BentoGridFeaturesPage() {
                 className="bg-neutral-950/60 border border-neutral-800/50 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs text-neutral-400"
               >
                 <div className="flex items-center gap-2.5">
-                  <Calendar size={13} className="text-[#00D062]" />
+                  <Calendar size={13} className="text-neutral-200" />
                   <span>Invite sent</span>
                 </div>
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4, type: "spring" }}>
-                  <Check size={12} className="text-[#00D062]" strokeWidth={3} />
+                  <Check size={12} className="text-neutral-200" strokeWidth={3} />
                 </motion.div>
               </motion.div>
 
@@ -190,11 +190,11 @@ export default function BentoGridFeaturesPage() {
                 className="bg-neutral-950/60 border border-neutral-800/50 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs text-neutral-400"
               >
                 <div className="flex items-center gap-2.5">
-                  <RefreshCwIcon size={12} className="text-[#00D062]" />
+                  <RefreshCwIcon size={12} className="text-neutral-200" />
                   <span>Reschedule managed</span>
                 </div>
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.6, type: "spring" }}>
-                  <Check size={12} className="text-[#00D062]" strokeWidth={3} />
+                  <Check size={12} className="text-neutral-200" strokeWidth={3} />
                 </motion.div>
               </motion.div>
             </div>

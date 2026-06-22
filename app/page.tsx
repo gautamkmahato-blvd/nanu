@@ -5,6 +5,8 @@
 
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
+import LandingPage from './home/page';
+
 
 export default async function Home() {
   let session = null;
@@ -19,5 +21,5 @@ export default async function Home() {
     redirect('/mails/v1/dashboard');
   }
 
-  redirect('/login');
+  return <LandingPage />;
 }

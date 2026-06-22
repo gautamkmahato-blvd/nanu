@@ -36,6 +36,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === '/') {
+    return NextResponse.next();
+  }
+
   // --- /login: redirect away if already authenticated ---
   if (pathname === '/login') {
     if (hasSession(request)) {

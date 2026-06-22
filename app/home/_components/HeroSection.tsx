@@ -30,7 +30,7 @@ export function HeroSection() {
         <header className="relative z-10 max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-2.5 cursor-pointer">
             <div className="w-7 h-7 rounded-lg bg-[#009541] flex items-center justify-center">
-              <Zap size={14} className="text-black" />
+              <Zap size={14} className="text-white" />
             </div>
             <span className="font-semibold text-sm tracking-tight">Context Mode</span>
           </div>
@@ -42,7 +42,7 @@ export function HeroSection() {
           </nav>
   
           <a href="/login" className="bg-[#009541] text-neutral-50 text-xs font-semibold px-5 py-2.5 rounded-full hover:bg-[#b5e000] transition-all transform hover:scale-[1.02] no-underline">
-            Get Started Free
+            Go to Dashboard
           </a>
         </header>
   
@@ -62,9 +62,14 @@ export function HeroSection() {
             and draft replies — all through a single chat interface.
           </p>
   
-          <a href="/login" className="bg-white text-black text-sm font-semibold px-8 py-3.5 rounded-full hover:bg-neutral-200 transition-all shadow-lg hover:shadow-white/5 mb-16 transform hover:scale-[1.01] no-underline">
-            Try Context Mode Free
-          </a>
+          <div className="flex items-center gap-12">
+            <a href="/login" className="bg-white text-black text-sm font-semibold px-8 py-3.5 rounded-full hover:bg-neutral-200 transition-all shadow-lg hover:shadow-white/5 mb-16 transform hover:scale-[1.01] no-underline">
+              Try Context Mode Free
+            </a>
+            <a href="/login" className="bg-white/10 text-neutral-50 text-sm font-semibold px-8 py-3.5 rounded-full hover:bg-neutral-200/10 border border-neutral-100 transition-all shadow-lg hover:shadow-white/5 mb-16 transform hover:scale-[1.01] no-underline">
+              View Demo
+            </a>
+          </div>
   
           {/* Dashboard Mockup */}
           <div className="w-full max-w-5xl bg-[#0F1110]/90 border border-neutral-800/80 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl flex text-left text-xs text-neutral-400">

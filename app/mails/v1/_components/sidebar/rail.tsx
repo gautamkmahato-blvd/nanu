@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '../theme-provider';
 import {
   Mail,
@@ -90,12 +90,16 @@ type RailProps = {
 export function Rail({ activeModule, onModuleChange }: RailProps) {
   const { theme, toggleTheme } = useTheme();
 
+  const router = useRouter();
+
   return (
     <div className="flex flex-col items-center w-[56px] h-screen shrink-0 bg-mail-rail border-r border-mail-border py-3">
       {/* Logo */}
-      <div className="w-9 h-9 rounded-xl bg-mail-accent flex items-center justify-center mb-5 shrink-0 cursor-default" title="Context Mode">
-        <Zap size={18} className="text-white" />
-      </div>
+      <button onClick={() => router.push('/home')}>
+        <span className="w-9 h-9 rounded-xl bg-mail-accent flex items-center justify-center mb-5 shrink-0 cursor-pointer" title="Context Mode">
+          <Zap size={18} className="text-white" />
+        </span>
+      </button>
 
       {/* Module icons */}
       <nav className="flex flex-col items-center gap-1 flex-1">
